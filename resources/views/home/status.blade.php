@@ -6,13 +6,17 @@
     <div class="inner-wrapper">
         <div class="wrapper">
             <div class="top">
-                <div class="icon">
-                    <box-icon color='white' size='md' name='check'></box-icon>
+                <div class="icon {{strtolower($data['status']) == 'succeed' ? 'success' : 'error'}}">
+                    @if(strtolower($data['status']) == 'succeed')
+                        <box-icon color='white' size='md' name='check'></box-icon>
+                    @else
+                        <box-icon color='white' name='x'></box-icon>
+                    @endif
                 </div>
                 <div class="header">
-                    <h5>Payment Success!</h5>
-                    <p>Your payment has been successfully done.</p>
-                    <h3>PHP 10,000.00</h3>
+                    <h5>{{$data['title']}}</h5>
+                    <p>{{$data['message']}}</p>
+                    <h3>{{$data['amount']}}</h3>
                 </div>
             </div>
             <hr>
@@ -32,7 +36,7 @@
                             Payment Status
                         </div>
                         <div>
-                            Success
+                            {{ucwords($data['status'])}}
                         </div>
                     </div>
                     <div class="items">
@@ -78,18 +82,20 @@
                 </div>
             </div>
         </div>
-        <div class="wrapper">
-            <div class="bottom">
-                <button>
-                    <box-icon color='white' name='download' ></box-icon>
-                    Download Receipt
-                </button>
-                <button>
-                    <box-icon color='dark' name='arrow-back'></box-icon>
-                    Go Back
-                </button>
+        @if(strtolower($data['status']) == 'succeed')
+            <div class="wrapper">
+                <div class="bottom">
+                    <button>
+                        <box-icon color='white' name='download' ></box-icon>
+                        Download Receipt
+                    </button>
+                    <button>
+                        <box-icon color='dark' name='arrow-back'></box-icon>
+                        Go Back
+                    </button>
+                </div>
             </div>
-        </div>
+        @endif
     </div>
 </div>
 

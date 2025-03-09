@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 
@@ -22,12 +23,31 @@ class HomeController extends Controller
 
     public function payment_status(string $status) {
 
-        $allowed = ['success', 'error', 'pending'];
+        $allowed = ['success', 'error'];
 
         if(!in_array($status, $allowed)) {
             return redirect()->route('home');
         }
 
-        return view('home.status', compact('status'));
+        $config = [
+            'success' => [
+                'status' => 'Succeed',
+                'title' => 'Payment Sucess!',
+                'message' => 'Your payment has been successfully processed.',
+                'reference_no' => '000123232',
+                'amount' => 'PHP 10,000.00',
+                'date' => Carbon::now()->format('F d, Y || h:iA'),
+            ],
+            'error' => [
+                'status' => 'failed',
+                'title' => 'Payment Failed!',
+                'message' => 'An error occured while processing your payment. Please try again!',
+                'amount' => 'PHP 10,000.00',
+            ]
+        ];
+
+        $data = $config[$status];
+
+        return view('home.status', compact('data'));
     }
 }
