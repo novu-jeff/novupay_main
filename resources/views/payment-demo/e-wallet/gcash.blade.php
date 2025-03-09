@@ -42,7 +42,7 @@
                                 <div class="header">
                                     <h5>Payment Success!</h5>
                                     <p>Your payment has been successfully done.</p>
-                                    <h3>PHP 10,000.00</h3>
+                                    <h3>PHP {{ $price ?? 0 }}</h3>
                                 </div>
                             </div>
                             <hr>
@@ -69,9 +69,7 @@
                                         <div>
                                             Date
                                         </div>
-                                        <div>
-                                            January 10, 2025 | 10:00 Am
-                                        </div>
+                                        <div id="datetime"></div>
                                     </div>
                                     <hr>
                                     <div class="items">
@@ -79,7 +77,7 @@
                                             Total Payment
                                         </div>
                                         <div>
-                                            PHP 10,000.00
+                                            {{ $price ?? 0 }}
                                         </div>
                                     </div>
                                 </div>
@@ -164,6 +162,10 @@
                 });
             }, 3000);
         });
+
+        const options = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true };
+        const now = new Date().toLocaleString('en-US', options);
+        $('#datetime').html(now);
     });
 </script>
 

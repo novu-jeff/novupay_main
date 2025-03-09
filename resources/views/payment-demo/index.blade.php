@@ -94,7 +94,15 @@
                 return;
             }
 
-            let paymentUrl = "/payment-method?bank=" + encodeURIComponent(selectedBank) + "&price=300";
+            const queryString = window.location.search;
+
+            // Use URLSearchParams to extract the 'price' parameter
+            const urlParams = new URLSearchParams(queryString);
+            const price = urlParams.get('price');
+
+            console.log(price);
+
+            let paymentUrl = "/payment-method?bank=" + encodeURIComponent(selectedBank) + "&price=" + encodeURIComponent(price);
             window.location.href = paymentUrl;
 
         });
