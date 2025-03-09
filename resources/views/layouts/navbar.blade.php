@@ -17,6 +17,9 @@
                 <li class="nav-item">
                     <a href="" class="nav-link active" aria-current="page" href="#">Api Documentation</a>
                 </li>
+                <li class="nav-item">
+                    <a href="{{ route('payment.demo') }}" class="nav-link active" aria-current="page" href="#">Demo</a>
+                </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         Page Statuses
