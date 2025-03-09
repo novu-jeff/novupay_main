@@ -1,4 +1,5 @@
 import $ from 'jquery';
+import 'jquery';
 import './bootstrap';
 import 'bootstrap';
 import 'boxicons'
@@ -10,7 +11,7 @@ carouselSplide('.payment-images-banks', 0.5, 'rtl');
 carouselSplide('.payment-images-other-banks', 0.5, 'ltr'); 
 
 $(function () {
-    
+
     $(window).scroll(function () {
         if ($(this).scrollTop() > 100) {
             $(".scroll-top").css("display", "flex").fadeIn();
