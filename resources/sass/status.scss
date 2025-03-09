@@ -5,35 +5,24 @@
     font-family: "Roboto", sans-serif;
 }
 
-body {
-    background-color: #f1f1f1;
-}
-
 .outer-wrapper {
     display: flex;
     justify-content: center;
     align-items: center;
     width: 100%;
-    height: 120vh;
+    height: 100vh;
+    padding-top: 100px;
 }
 
 .wrapper {
 
     position: relative;
-    min-width: 400px;
+    min-width: 300px;
     border-radius: 20px;
     padding: 40px 40px 40px 40px;
     background-color: $light;
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.1); 
     margin: 15px 0 15px 0;
-
-    // &:nth-child(1) {
-    //     --mask:
-    //         radial-gradient(9.33px at 50% calc(100% - 12.8px),#000 99%,#0000 101%) calc(50% - 16px) 0/32px 100%,
-    //         radial-gradient(9.33px at 50% calc(100% + 4.8px),#0000 99%,#000 101%) 50% calc(100% - 8px)/32px 100% repeat-x;
-    //     -webkit-mask: var(--mask);
-    //             mask: var(--mask);
-    // }
 
     &:nth-child(2) {
 
@@ -78,9 +67,8 @@ body {
             display: block;
             justify-content: space-between;
 
-            button, a {
+            button {
                 width: 100%;
-                text-decoration: none;
                 padding: 20px 40px 20px 40px;
                 display: flex;
                 justify-content: center;
@@ -133,10 +121,18 @@ body {
             transform: translate(-50%, -50%);
             width: 60px;
             height: 60px;
-            background-color: $success;
             border-radius: 50%;
             z-index: -1; 
         }
+
+        .icon.success::after {
+            background-color: $success;
+        }
+        
+        .icon.error::after {
+            background-color: $danger;
+        }
+        
 
         text-align: center;
         
