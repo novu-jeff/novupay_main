@@ -10,6 +10,8 @@ fadeSplide('.banner-images', 8000);
 carouselSplide('.payment-images-banks', 0.5, 'rtl'); 
 carouselSplide('.payment-images-other-banks', 0.5, 'ltr'); 
 
+window.$ = window.jQuery = $;
+
 $(function () {
 
     $(window).scroll(function () {
