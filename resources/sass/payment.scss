@@ -1,0 +1,95 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+@import 'variables';
+
+.bg-color {
+    height: 320px;
+    width: 100%;
+    background-color: $primary;
+    position: absolute;
+    z-index: -1;
+}
+
+.content {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    h1 {
+        font-size: 64px;
+        font-weight: 900;
+        margin-bottom: 24px;
+        color: white;
+        text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+    }
+    .card {
+        max-width: 620px;
+        padding: 30px 24px 30px 24px;
+        border-radius: 24px;
+        h5 {
+            margin-left: 32px;
+            padding-bottom: 12px;
+            padding-top: 12px;
+            text-transform: uppercase;
+            font-weight: 900;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.11);
+        }
+        .banks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            justify-content: center;
+            .bank {
+                border-radius: 12px;
+                border: 2px solid rgb(255, 255, 255);
+                overflow: hidden;
+                img {
+                    max-width: 180px;
+                    transition: all ease 0.2s;
+                }
+                &:hover {
+                    border: 2px solid $primary;
+                    cursor: pointer;
+                }
+            }
+            .bank.selected {
+                border: 2px solid $primary;
+            }
+        }
+    }
+}
+
+.btn-container {
+    display: flex;
+    justify-content: center;
+    padding: 50px 20px 30px 20px;
+    .custom {
+        height: 64px;
+        width: 280px;
+        border-radius: 64px !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-transform: uppercase;
+        font-weight: 700;
+    }    
+}
+
+.custom {
+    height: 64px;
+    width: 280px;
+    border-radius: 64px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    font-weight: 700;
+}    
+
+
+#gcash-number {
+    height: 64px;
+    font-size: 16px;
+    font-weight: 300;
+}
+

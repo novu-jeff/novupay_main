@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\PaymentDemoController;
 use App\Http\Controllers\TestController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,3 +21,6 @@ Route::get('/', [HomeController::class, 'home'])
 
 Route::get('/page/{status}', [HomeController::class, 'payment_status'])
     ->name('home.status');
+
+Route::get('/payment-demo', [PaymentDemoController::class, 'index']);
+Route::get('/payment-method', [PaymentDemoController::class, 'gcash']);
