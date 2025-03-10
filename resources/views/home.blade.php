@@ -46,7 +46,7 @@
             </div>
         </div>
     </div>
-    <div class="payment-partners" id="partners">
+    <div class="payment-partners" id="payment-partners">
         <div class="section-title">
             Our Payment Partners
         </div>
@@ -73,7 +73,7 @@
             </div>
         </div>
     </div>
-    <div class="about-us" id="about-us">
+    <div class="business-solutions" id="business-solutions">
         <div class="container">
             <div class="section-title">
                 <div>Our Business Solutions</div>
