@@ -11,14 +11,12 @@ class PaymentService {
     public $passwork;
     public $secretKey;
     public $baseUrl;
-    public $serviceID;
 
     public function __construct() {
         $this->username = env('ICOREPAY_USERNAME');
         $this->passwork = env('ICOREPAY_PASSWORK');
         $this->secretKey = env('ICOREPAY_SECRET');
         $this->baseUrl = env('ICOREPAY_BASE_URL');
-        $this->serviceID = env('ICOREPAY_SERVICE_ID');
     }
 
     public function generateSignature(array $data) {
@@ -52,9 +50,10 @@ class PaymentService {
 
     public function createPayment(array $payload) {
         try {
+
             $payload['signature'] = $this->generateSignature($payload);
             $jsonData = json_encode($payload);
-    
+                
             $ch = curl_init($this->baseUrl . '/pay');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [

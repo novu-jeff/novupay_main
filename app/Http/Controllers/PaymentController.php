@@ -33,9 +33,9 @@ class PaymentController extends Controller
             'passwork' => $this->passwork,
             'amount' => 1000,
             'currency' => 'PHP',
-            'operation_id' => '04',
-            'payment_id' => '04',
-            'by_method' => 'gcash-qr',
+            'operation_id' => 'J12',
+            'payment_id' => 'J12',
+            'by_method' => 'qrph',
             'callback_url' => 'http://your.site/callback_url',
             'return_url' => 'http://your.site/return_url',
             'customer' => [
@@ -46,7 +46,7 @@ class PaymentController extends Controller
                 'address' => 'Manila, PH',
             ],
         ];
-
+        
         $this->PaymentService->createPayment($payload);
 
     }
@@ -56,7 +56,7 @@ class PaymentController extends Controller
         $payload = [
             'service_id' => 'novopay',
             'passwork' => $this->passwork,
-            'operation_id' => '04',         
+            'operation_id' => 'J12',         
         ];
 
         $this->PaymentService->getStatus($payload);
