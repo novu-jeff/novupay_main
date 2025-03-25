@@ -135,9 +135,7 @@ class PaymentNavigationController extends Controller
         $data['return_url'] = env('CALLBACK_URL');
         $data['currency'] = 'PHP';
 
-
         $response = $this->PaymentService->createPayment($data);
-        
 
         $model->by_method = $data['by_method'];
         $model->payment_id = $data['payment_id'];
