@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Payment {{ucwords($data['status'])}} | NovuPay</title>
+    <title>Payment {{ucwords($payload['status'])}} | NovuPay</title>
     @vite(['resources/sass/status.scss', 'resources/js/status.js'])
 </head>
 <body>

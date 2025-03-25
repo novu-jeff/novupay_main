@@ -11,7 +11,7 @@
     align-items: center;
     width: 100%;
     height: 100vh;
-    padding-top: 100px;
+    padding-top: 0px;
 }
 
 .wrapper {
@@ -173,7 +173,7 @@
         .details .items {
             display: flex;
             justify-content: space-between;
-            margin: 5px 0 5px 0;
+            margin: 1px 0 1px 0;
 
             div:nth-child(1) {
                 font-weight: 500;

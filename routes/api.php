@@ -20,9 +20,16 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-// Route::post('/order', [PaymentController::class, 'order']);
 Route::prefix('v1')->group(function() {
-    Route::post('/pay', [PaymentController::class, 'pay']);
-    Route::get('/status', [PaymentController::class, 'status']);
+    Route::post('/save/transaction', [PaymentController::class, 'saveTransaction']);
+    Route::get('/pay', [PaymentController::class, 'pay'])
+        ->name('payment.index');
+    Route::post('/pay', [PaymentController::class, 'pay'])
+        ->name('payment.pay');
+    Route::post('/status/{operation_id}', [PaymentController::class, 'status'])
+        ->name('payment.status');
+    Route::post('/callback', [PaymentController::class, 'callback'])
+        ->name('payment.callback');
+
 });
 

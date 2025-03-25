@@ -2,8 +2,9 @@
 
 namespace App\Services;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Psr7\Request;
+use App\Models\Transactions;
+use Carbon\Carbon;
+use Exception;
 
 class PaymentService {
     
@@ -46,16 +47,17 @@ class PaymentService {
         return strtolower(hash_hmac('sha256', $signature, $secretKey));
         
     }
-    
 
     public function createPayment(array $payload) {
+
         try {
 
             $payload['signature'] = $this->generateSignature($payload);
             $jsonData = json_encode($payload);
-                
+
             $ch = curl_init($this->baseUrl . '/pay');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Content-Type: application/json'
             ]);
@@ -66,42 +68,31 @@ class PaymentService {
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
     
-            // Decode response if it's valid JSON
             $decodedResponse = json_decode($response, true);
-            
-            // Set JSON header
-            header('Content-Type: application/json');
     
             if ($httpCode === 200) {
-                echo json_encode($decodedResponse);
-                exit;
+                return $decodedResponse;
             }
     
-            echo json_encode([
+            return [
                 'status' => 'fail',
                 'error' => $decodedResponse ?? $response 
-            ]);
-
-            exit;
+            ];
 
         } catch (\Exception $e) {
-            header('Content-Type: application/json');
-            echo json_encode(['status' => 'fail', 'error' => ['message' => $e->getMessage()]]);
-            exit;
+            return ['status' => 'fail', 'error' => ['message' => $e->getMessage()]];
         }
     }
     
-    public function getStatus(array $payload) {
+    public function getStatus(array $payload, bool $isApi = false)
+    {
         try {
-            
             $payload['signature'] = $this->generateSignature($payload);
             $jsonData = json_encode($payload);
     
             $ch = curl_init($this->baseUrl . '/status');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json'
-            ]);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
     
@@ -109,29 +100,57 @@ class PaymentService {
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
     
-            // Decode response if it's valid JSON
             $decodedResponse = json_decode($response, true);
-            
-            // Set JSON header
-            header('Content-Type: application/json');
     
-            if ($httpCode === 200) {
-                echo json_encode($decodedResponse);
-                exit;
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new Exception("Invalid JSON response: " . json_last_error_msg());
             }
     
-            echo json_encode([
-                'status' => 'fail',
-                'error' => $decodedResponse ?? $response 
-            ]);
+            $result = ($httpCode === 200) 
+                ? $decodedResponse 
+                : ['status' => 'fail', 'error' => $decodedResponse ?? $response];
+    
+            $record = Transactions::select('date_paid', 'payment_id', 'reference_no', 'callback')->where('payment_id', $payload['operation_id'])
+                ->first();
 
-            exit;
+            $status = $result['operation']['status'];
+            $external_id = $result['external_id'];
+            $reference_no = $record['reference_no'];
+            $payment_id = $record['payment_id'];
+            $date_paid = $record['date_paid'] ? Carbon::parse($record['date_paid'])->format('M d, Y h:i A') : '';
 
+            $response = [
+                'status' => $status,
+                'external_id' => $external_id,
+                'reference_no' => $reference_no,
+                'payment_id' => $payment_id,
+                'amount' => $result['amount'],
+                'date_paid' => $date_paid,
+                'callback' => [
+                    'external' => $record['callback'],
+                    'internal' => route('payment.callback')
+                ] ?? []
+            ];
+
+            if ($isApi) {
+                echo json_encode($response);
+                return;
+            }
+    
+            return $response;
+    
         } catch (\Exception $e) {
-            header('Content-Type: application/json');
-            echo json_encode(['status' => 'fail', 'error' => ['message' => $e->getMessage()]]);
-            exit;
+            $errorResult = ['status' => 'fail', 'error' => ['message' => $e->getMessage()]];
+            
+            if ($isApi) {
+                echo json_encode($errorResult);
+                return;
+            }
+            
+            return $errorResult;
         }
+    
     }
+
 
 }

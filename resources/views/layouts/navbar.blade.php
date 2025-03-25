@@ -18,12 +18,12 @@
                     <a class="nav-link dropdown-toggle" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         API Docs
                     </a>
-                    <ul class="dropdown-menu">
+                    {{-- <ul class="dropdown-menu">
                         <li>
-                            <a target="_blank" class="dropdown-item" href="{{ route('payment.demo') }}" aria-current="page">Documentation</a>
+                            <a target="_blank" class="dropdown-item" href="{{ route('payment.merchants') }}" aria-current="page">Documentation</a>
                         </li>
                         <li>
-                            <a target="_blank" class="dropdown-item" href="{{ route('payment.demo') }}" aria-current="page">Payment Demo</a>
+                            <a target="_blank" class="dropdown-item" href="{{ route('payment.merchants') }}" aria-current="page">Payment Demo</a>
                         </li>
                         <li>
                             <a target="_blank" class="dropdown-item" href="{{route('home.status', ['status' => 'success'])}}">Successful Payment</a>
@@ -31,7 +31,7 @@
                         <li>
                             <a target="_blank" class="dropdown-item" href="{{route('home.status', ['status' => 'error'])}}">Error Payment</a>
                         </li>
-                    </ul>
+                    </ul> --}}
                 </li>
                 <li class="nav-item">
                     <a target="_blank" href="https://novulutions.com" class="nav-link active" aria-current="page">About Us</a>

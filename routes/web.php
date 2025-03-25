@@ -1,8 +1,7 @@
 <?php
 
 use App\Http\Controllers\HomeController;
-use App\Http\Controllers\PaymentDemoController;
-use App\Http\Controllers\TestController;
+use App\Http\Controllers\PaymentNavigationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -22,5 +21,12 @@ Route::get('/', [HomeController::class, 'home'])
 Route::get('/page/{status}', [HomeController::class, 'payment_status'])
     ->name('home.status');
 
-Route::get('/payment-demo', [PaymentDemoController::class, 'index'])->name('payment.demo');
-Route::get('/payment-method', [PaymentDemoController::class, 'gcash'])->name('payment.,ethod');
+Route::get('/payment/merchants/{transaction_id}', [PaymentNavigationController::class, 'show'])
+    ->name('payment.merchants.show');
+
+Route::post('/payment/merchants/{transaction_id}', [PaymentNavigationController::class, 'store'])
+    ->name('payment.merchants.store');
+
+Route::post('/payment/choose/other/{payment_id}/{reference_no}', [PaymentNavigationController::class, 'choose_other'])
+    ->name('payment.other.merchants');
+    

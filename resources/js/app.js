@@ -6,9 +6,15 @@ import 'boxicons'
 import { fadeSplide, carouselSplide } from './autoplay';
 
 
-fadeSplide('.banner-images', 8000); 
-carouselSplide('.payment-images-banks', 0.5, 'rtl'); 
-carouselSplide('.payment-images-other-banks', 0.5, 'ltr'); 
+if ($('.banner-images').length) {
+    fadeSplide('.banner-images', 8000);
+}
+if ($('.payment-images-banks').length) {
+    carouselSplide('.payment-images-banks', 0.5, 'rtl');
+}
+if ($('.payment-images-other-banks').length) {
+    carouselSplide('.payment-images-other-banks', 0.5, 'ltr');
+}
 
 window.$ = window.jQuery = $;
 

@@ -4,7 +4,7 @@
     <div class="bg-color"></div>
     <div class="container">
         <div class="content">
-            <h1>NOVUPAY</h1>
+            <h1 class="text-center">NOVULUTIONS' PAYMENT GATEWAY</h1>
             <div class="card shadow-lg">
                 <h5>Banks</h5>
                 <div class="banks mb-3">
@@ -24,13 +24,12 @@
                         <img src="{{ asset('images/banks/aub.png') }}" alt="AUB">
                     </div>
                 </div>
-        
                 <h5>E-Wallet</h5>
                 <div class="banks mb-4">
                     <div class="bank">
                         <img src="{{ asset('images/banks/mayabank.png') }}" alt="Maya Bank">
                     </div>
-                    <div class="bank">
+                    <div class="bank" data-id="gcash-app">
                         <img src="{{ asset('images/other-banks/gcash.png') }}" alt="GCash">
                     </div>
                     <div class="bank">
@@ -46,7 +45,7 @@
         
                 <h5>Bank Transfer</h5>
                 <div class="banks">
-                    <div class="bank">
+                    <div class="bank"  data-id="qrph">
                         <img src="{{ asset('images/other-banks/qrph.png') }}" alt="QR PH">
                     </div>
                     <div class="bank">
@@ -58,10 +57,14 @@
                 </div>
         
                 <div class="btn-container">
-                    <a class="btn btn-primary custom" href="#">Proceed Payment</a>
+                    <form action="{{route('payment.merchants.store', ['transaction_id' => $transaction_id])}}" method="post">
+                        @csrf
+                        <input type="hidden" name="by_method" id="by_method">
+                        <button class="btn btn-primary text-uppercase px-5 py-3 fw-bold">Proceed Payment</button>
+                    </form>
                 </div>
-                <div class="pt-1 d-flex justify-content-center">
-                    Powered by Novulutions Inc
+                <div class="pt-1 d-flex justify-content-center text-uppercase fw-bold text-muted" style="font-size: 12px;">
+                    Powered by Novulutions Inc.
                 </div>
             </div>
         </div>
@@ -74,37 +77,11 @@
 <script>
     $(document).ready(function () {
         $(".bank").click(function () {
+            const id = $(this).data('id') || ''; 
+            console.log(id)
+            $("#by_method").val(id);
             $(".bank").removeClass("selected");
-
             $(this).addClass("selected");
-        });
-
-        $(".btn.custom").click(function (event) {
-            event.preventDefault(); 
-
-            let selectedBank = $(".bank.selected img").attr("alt");
-
-            if (!selectedBank) {
-                alert("Please select a payment method before proceeding.");
-                return;
-            }
-
-            if (selectedBank !== 'GCash') {
-                alert("Please select a different payment method. The merchant is not yet registered.");
-                return;
-            }
-
-            const queryString = window.location.search;
-
-            // Use URLSearchParams to extract the 'price' parameter
-            const urlParams = new URLSearchParams(queryString);
-            const price = urlParams.get('price');
-
-            console.log(price);
-
-            let paymentUrl = "/payment-method?bank=" + encodeURIComponent(selectedBank) + "&price=" + encodeURIComponent(price);
-            window.location.href = paymentUrl;
-
         });
     });
 </script>
