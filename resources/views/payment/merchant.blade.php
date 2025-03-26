@@ -79,7 +79,9 @@
                 }
 
                 async function handleSuccessfulPayment(data) {
+                    
                     try {
+                        
                         const { external: externalCallback, internal: internalCallback } = data.callback;
                         const csrfToken = '{{csrf_token()}}';
 
