@@ -32,6 +32,7 @@ class PaymentNavigationController extends Controller
         
         $data = Transactions::where('reference_no', $transaction_id)->first();
     
+
         if (!$data) {
             return abort(404, 'Transaction not found.');
         }
@@ -47,11 +48,22 @@ class PaymentNavigationController extends Controller
 
             if ($qrContent && $operationId) {
 
-                $qrCode = QrCode::size(180)->generate($qrContent);
-    
+                $logoPath = '/public/images/novulution-icon.jpg';
+
+                $qrCode = QrCode::format('png')
+                    ->size(550)
+                    ->merge($logoPath, .3, false)
+                    ->errorCorrection('H')
+                    ->eye('circle')
+                    ->gradient(66, 148, 179, 25, 87, 125, 'diagonal')
+                    ->generate($qrContent); 
+
+                $qrCodeBase64 = 'data:image/png;base64,' . base64_encode($qrCode);
+
                 $payload = [
+                    'payment_logo' => $this->getPaymentLogo($data->by_method),
                     'merchant' => $this->selectMerchant($data['by_method']),
-                    'qr_code' => $qrCode,
+                    'qr_code' => $qrCodeBase64,
                     'reference_no' => $data->reference_no,
                     'operation_id' => $operationId,
                     'external_id' => $response['external_id']
@@ -162,8 +174,7 @@ class PaymentNavigationController extends Controller
         return 'error';
     }
 
-    private function getStatus(string $operation_id)
-    {
+    private function getStatus(string $operation_id) {
         $payload = [
             'service_id' => $this->username,
             'passwork' => $this->passwork,
@@ -194,6 +205,15 @@ class PaymentNavigationController extends Controller
             
         }
 
+    }
+
+    private function getPaymentLogo(string $payment_type) {
+        $list = [
+            'gcash-app' => 'other-banks/gcash.png',
+            'qrph' => 'other-banks/qrph.png'
+        ];
+
+        return $list[$payment_type];
     }
 
 }

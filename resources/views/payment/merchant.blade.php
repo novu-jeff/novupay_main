@@ -4,34 +4,42 @@
 
     <div class="container d-flex justify-content-center align-items-center vh-100">
         <div class="payment-card text-center p-5">
-            <h4 class="mb-3 text-uppercase fw-bold">{{ $payload['merchant'] }}</h4>
-            <p class="text-muted">Scan the QR code below to proceed with the payment.</p>
-            <div class="qr-code">
-                {!! $payload['qr_code'] !!}
+            <img src="{{asset('images/' . $payload['payment_logo'])}}" alt="payment_logo" style="max-width: 100%; height: auto; object-fit: contain; display: block; margin: auto !important">
+            {{-- <h4 class="mb-3 text-uppercase fw-bold">{{ $payload['merchant'] }}</h4> --}}
+            <h1 class="text-uppercase fw-bold mt-4">PHP 100.00</h1>
+            <div class="d-flex justify-content-center">
+                <p class="text-muted w-75 text-center">Please scan the QR code below to complete your payment with the exact amount.</p>
+            </div>
+            <div class="qr-code mt-3">
+                <img src="{{ $payload['qr_code'] }}" alt="QR Code">
             </div>
             <form action="{{route('payment.other.merchants', ['payment_id' => $payload['operation_id'], 'reference_no' => $payload['reference_no']])}}" method="post">
                 @csrf
-                <button type="submit" class="btn btn-primary mt-5 px-5 py-3 text-uppercase">Choose Other Merchants</button>
+                <button type="submit" class="btn btn-primary fw-bold mt-4 px-5 py-3 text-uppercase">Choose Other Merchants</button>
             </form>
             <div class="mt-3" style="font-size: 12px;">
                 {{$payload['external_id']}}
             </div>
             <div class="mt-5 text-uppercase fw-bold text-muted" style="font-size: 12px;">
-                <div>Powered by NovuPay</div>
+                <div>Powered by Novulutions Inc.</div>
             </div>
         </div>
     </div>
 
     <style>
         body {
-            background-color: #19577d;
+            background-color: #f6f6f6;
         }
         .payment-card {
             margin: auto;
-            border-radius: 15px;
+            border-radius: 25px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             background: white;
             padding: 20px;
+        }
+        img {
+            height: 200px;
+            width: 200px;
         }
     </style>
 @endsection
