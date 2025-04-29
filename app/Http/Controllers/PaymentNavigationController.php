@@ -72,7 +72,7 @@ class PaymentNavigationController extends Controller
             'by_method' => $payload['by_method']
         ], [
             'transaction_id' => 'required|exists:transactions,reference_no',
-            'by_method' => 'required|in:qrph,gcash-app,gcash,maya,grabpay',
+            'by_method' => 'required|in:qrph,gcash-app,gcash,maya,grabpay,pm-,pm-dob-mbnk,pm-dob-bdo,pm-dob-bpi,pm-dob-lbnk,pm-dob-ubp',
         ]);
 
         if($validator->fails()) {

@@ -8,20 +8,20 @@
             <div class="card shadow-lg">
                 <h5>Banks</h5>
                 <div class="banks mb-3">
-                    <div class="bank">
-                        <img src="{{ asset('images/banks/securitybank.png') }}" alt="Security Bank">
+                    <div class="bank" data-id="pm-dob-mbnk">
+                        <img src="{{ asset('images/banks/metrobank.png') }}" alt="Metro Bank">
                     </div>
-                    <div class="bank">
-                        <img src="{{ asset('images/banks/landbank.png') }}" alt="Land Bank">
-                    </div>
-                    <div class="bank">
+                    <div class="bank" data-id="pm-dob-bdo">
                         <img src="{{ asset('images/banks/bdo.png') }}" alt="BDO">
                     </div>
-                    <div class="bank">
+                    <div class="bank" data-id="pm-dob-bpi">
                         <img src="{{ asset('images/banks/bpi.png') }}" alt="BPI">
                     </div>
-                    <div class="bank">
-                        <img src="{{ asset('images/banks/aub.png') }}" alt="AUB">
+                    <div class="bank" data-id="pm-dob-lbnk">
+                        <img src="{{ asset('images/banks/landbank.png') }}" alt="Land Bank">
+                    </div>
+                    <div class="bank" data-id="pm-dob-ubp">
+                        <img src="{{ asset('images/banks/unionbank.png') }}" alt="Union Bank">
                     </div>
                 </div>
                 <h5>E-Wallet</h5>
@@ -34,12 +34,6 @@
                     </div>
                     <div class="bank" data-id="gcash-app">
                         <img src="{{ asset('images/other-banks/gcash.png') }}" alt="GCash">
-                    </div>
-                    <div class="bank">
-                        <img src="{{ asset('images/other-banks/alipay.png') }}" alt="Alipay">
-                    </div>
-                    <div class="bank">
-                        <img src="{{ asset('images/other-banks/shopee pay.png') }}" alt="Shopee Pay">
                     </div>
                     <div class="bank" data-id="grabpay">
                         <img src="{{ asset('images/other-banks/grab pay.png') }}" alt="Grab Pay">
