@@ -6,97 +6,61 @@ use App\Models\Transactions;
 use App\Services\PaymentService;
 use Exception;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Support\Str;
 
 class PaymentNavigationController extends Controller
 {
 
     public $PaymentService;
+    public $merchant;
     public $username;
     public $passwork;
     public $secretKey;
-    public $baseUrl;
+    public $payInUrl;
+    public $payOutUrl;
+    public $statusUrl;
 
     public function __construct(PaymentService $PaymentService) {
         $this->PaymentService = $PaymentService;
+        $this->merchant = env('ICOREPAY_MERCHANT');
         $this->username = env('ICOREPAY_USERNAME');
         $this->passwork = env('ICOREPAY_PASSWORK');
         $this->secretKey = env('ICOREPAY_SECRET');
-        $this->baseUrl = env('ICOREPAY_BASE_URL');
+        $this->payInUrl = env('ICOREPAY_PAYIN');
+        $this->payOutUrl = env('ICOREPAY_PAYOUT');
+        $this->statusUrl = env('ICOREPAY_STATUS');
     }
 
     public function show(string $transaction_id) {
-        
-        $data = Transactions::where('reference_no', $transaction_id)->first();
     
+        $data = Transactions::where('reference_no', $transaction_id)->first();
 
         if (!$data) {
             return abort(404, 'Transaction not found.');
         }
-    
-        $response = $this->getStatus($data->payment_id ?? $data->reference_no);
-    
-        if (isset($response) && $response['status'] == 'processing' && $data['request']) {
-    
-            $content = json_decode($data['request'], true);
+        
+        $response = $this->getStatus($data->payment_id ?? '');
+        if(!isset($response['external_id'])) {
+            return view('payment.index', ['transaction_id' => $transaction_id]);
+        } else {
+            return redirect()->route('payment.merchants.pay', ['transaction_id' => $transaction_id, 'operation_id' => $data->payment_id]);
+        }
+    }
 
-            $qrContent = $content['qr_content'] ?? null;
-            $operationId = $content['operation_id'] ?? null;
+    public function pay(string $transaction_id, string $operation_id) {
 
-            if ($qrContent && $operationId) {
+        $response = $this->getStatus($operation_id);
 
-                $logoPath = '/public/images/novulution-icon.jpg';
-
-                $qrCode = QrCode::format('png')
-                    ->size(550)
-                    ->merge($logoPath, .3, false)
-                    ->errorCorrection('H')
-                    ->eye('circle')
-                    ->gradient(66, 148, 179, 25, 87, 125, 'diagonal')
-                    ->generate($qrContent); 
-
-                $qrCodeBase64 = 'data:image/png;base64,' . base64_encode($qrCode);
-
-                $payload = [
-                    'payment_logo' => $this->getPaymentLogo($data->by_method),
-                    'merchant' => $this->selectMerchant($data['by_method']),
-                    'qr_code' => $qrCodeBase64,
-                    'reference_no' => $data->reference_no,
-                    'operation_id' => $operationId,
-                    'external_id' => $response['external_id']
-                ];
-    
-                return view('payment.merchant', compact('payload'));
-            }
+        if(empty($response)) {
+            return redirect()->route('payment.merchants.show', ['transaction_id' => $transaction_id, 'operation_id' => $operation_id]);
         }
 
-        if(isset($response) && $response['status'] != 'processing') {
+        $payload = $response;
 
-            $status = $response['status'];
+        $payload['reference_no'] = $transaction_id;
 
-            $payload = [];
-
-            if($status == 'paid') {
-                $payload = [
-                    'status' => $status,
-                    'title' => 'Payment Success!',
-                    'message' => 'Your payment has been successfully processed.',
-                    'reference_no' => $data->reference_no,
-                    'payment_id' => $data->payment_id,
-                    'date_paid' => $response['date_paid'],
-                    'amount' => 'PHP ' . number_format($response['amount'], 2),
-                ];
-            } else {
-                return view('payment.index', ['transaction_id' => $transaction_id]);
-            }
-
-            return view('payment.status', compact('payload'));
-        }
-    
-        return view('payment.index', ['transaction_id' => $transaction_id]);
+        return view('payment.merchant', compact('payload'));
     }
     
     public function store(Request $request, string $transaction_id) {
@@ -108,7 +72,7 @@ class PaymentNavigationController extends Controller
             'by_method' => $payload['by_method']
         ], [
             'transaction_id' => 'required|exists:transactions,reference_no',
-            'by_method' => 'required|in:qrph,gcash-app'
+            'by_method' => 'required|in:qrph,gcash-app,gcash,maya,grabpay',
         ]);
 
         if($validator->fails()) {
@@ -146,15 +110,24 @@ class PaymentNavigationController extends Controller
         $data['callback_url'] = env('CALLBACK_URL');
         $data['return_url'] = env('CALLBACK_URL');
         $data['currency'] = 'PHP';
+        $data['merchant'] = [
+            'name' => $this->merchant,
+        ];
 
         $response = $this->PaymentService->createPayment($data);
+
+        if(!isset($response['request'])) {
+            if($response['status'] == 'error') {
+                return response()->json($response);
+            }
+        }
 
         $model->by_method = $data['by_method'];
         $model->payment_id = $data['payment_id'];
         $model->request = json_encode($response);
         $model->save();
 
-        return redirect()->route('payment.merchants.show', ['transaction_id' => $transaction_id]);
+        return redirect()->route('payment.merchants.pay', ['transaction_id' => $transaction_id, 'operation_id' => $unique]);
 
     }
 
@@ -168,13 +141,14 @@ class PaymentNavigationController extends Controller
             $record->request = null;
             $record->save();
 
-            return redirect()->back();
+            return redirect()->route('payment.merchants.show', ['transaction_id' => $reference_no]);
         }
 
         return 'error';
     }
 
     private function getStatus(string $operation_id) {
+
         $payload = [
             'service_id' => $this->username,
             'passwork' => $this->passwork,
@@ -182,10 +156,6 @@ class PaymentNavigationController extends Controller
         ];
     
         $response = $this->PaymentService->getStatus($payload);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new Exception("Failed to decode JSON response: " . json_last_error_msg());
-        }
     
         return $response ?? []; 
     }
@@ -200,6 +170,12 @@ class PaymentNavigationController extends Controller
             
             case 'gcash-app': 
                 return 'Gcash Payment';
+            case 'gcash':
+                return 'Gcash Payment';
+            case 'maya':
+                return 'Maya Payment';
+            case 'grabpay':
+                return 'Grabpay Payment';
             case 'qrph':
                 return 'QRPH Payment';
             
@@ -210,6 +186,9 @@ class PaymentNavigationController extends Controller
     private function getPaymentLogo(string $payment_type) {
         $list = [
             'gcash-app' => 'other-banks/gcash.png',
+            'gcash' => 'other-banks/gcash.png',
+            'maya' => 'banks/mayabank.png',
+            'grabpay' => 'other-banks/grab pay.png',
             'qrph' => 'other-banks/qrph.png'
         ];
 

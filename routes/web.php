@@ -24,6 +24,8 @@ Route::get('/page/{status}', [HomeController::class, 'payment_status'])
 
 Route::get('/payment/merchants/{transaction_id}', [PaymentNavigationController::class, 'show'])
     ->name('payment.merchants.show');
+Route::get('/payment/merchants/pay/{transaction_id}/{operation_id}', [PaymentNavigationController::class, 'pay'])
+    ->name('payment.merchants.pay');
 
 Route::post('/payment/merchants/{transaction_id}', [PaymentNavigationController::class, 'store'])
     ->name('payment.merchants.store');

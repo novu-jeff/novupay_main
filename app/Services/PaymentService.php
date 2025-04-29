@@ -11,13 +11,15 @@ class PaymentService {
     public $username;
     public $passwork;
     public $secretKey;
-    public $baseUrl;
+    public $status;
+    public $payUrl;
 
     public function __construct() {
         $this->username = env('ICOREPAY_USERNAME');
         $this->passwork = env('ICOREPAY_PASSWORK');
         $this->secretKey = env('ICOREPAY_SECRET');
-        $this->baseUrl = env('ICOREPAY_BASE_URL');
+        $this->status = env('ICOREPAY_STATUS');
+        $this->payUrl = env('ICOREPAY_PAY');
     }
 
     public function generateSignature(array $data) {
@@ -55,7 +57,7 @@ class PaymentService {
             $payload['signature'] = $this->generateSignature($payload);
             $jsonData = json_encode($payload);
 
-            $ch = curl_init($this->baseUrl . '/pay');
+            $ch = curl_init($this->payUrl);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -65,19 +67,19 @@ class PaymentService {
             curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
     
             $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
     
             $decodedResponse = json_decode($response, true);
-    
-            if ($httpCode === 200) {
-                return $decodedResponse;
+
+            if(!empty($decodedResponse) && $decodedResponse['request']['status'] == 'error') {
+                return [
+                    'status' => 'error',
+                    'error_code' => $decodedResponse['request']['error_code'] ?? 'Unknown error',
+                    'error_message' => $decodedResponse['request']['error_message'] ?? 'Failed to create payment'
+                ];
             }
-    
-            return [
-                'status' => 'fail',
-                'error' => $decodedResponse ?? $response 
-            ];
+
+           return $decodedResponse;
 
         } catch (\Exception $e) {
             return ['status' => 'fail', 'error' => ['message' => $e->getMessage()]];
@@ -90,7 +92,7 @@ class PaymentService {
             $payload['signature'] = $this->generateSignature($payload);
             $jsonData = json_encode($payload);
     
-            $ch = curl_init($this->baseUrl . '/status');
+            $ch = curl_init($this->status);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
             curl_setopt($ch, CURLOPT_POST, true);
@@ -102,42 +104,7 @@ class PaymentService {
     
             $decodedResponse = json_decode($response, true);
     
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new Exception("Invalid JSON response: " . json_last_error_msg());
-            }
-    
-            $result = ($httpCode === 200) 
-                ? $decodedResponse 
-                : ['status' => 'fail', 'error' => $decodedResponse ?? $response];
-    
-            $record = Transactions::select('date_paid', 'payment_id', 'reference_no', 'callback')->where('payment_id', $payload['operation_id'])
-                ->first();
-
-            $status = $result['operation']['status'];
-            $external_id = $result['external_id'];
-            $reference_no = $record['reference_no'];
-            $payment_id = $record['payment_id'];
-            $date_paid = $record['date_paid'] ? Carbon::parse($record['date_paid'])->format('M d, Y h:i A') : '';
-
-            $response = [
-                'status' => $status,
-                'external_id' => $external_id,
-                'reference_no' => $reference_no,
-                'payment_id' => $payment_id,
-                'amount' => $result['amount'],
-                'date_paid' => $date_paid,
-                'callback' => [
-                    'external' => $record['callback'],
-                    'internal' => route('payment.callback')
-                ] ?? []
-            ];
-
-            if ($isApi) {
-                echo json_encode($response);
-                return;
-            }
-    
-            return $response;
+            return $decodedResponse;
     
         } catch (\Exception $e) {
             $errorResult = ['status' => 'fail', 'error' => ['message' => $e->getMessage()]];

@@ -26,8 +26,11 @@
                 </div>
                 <h5>E-Wallet</h5>
                 <div class="banks mb-4">
-                    <div class="bank">
+                    <div class="bank" data-id="maya">
                         <img src="{{ asset('images/banks/mayabank.png') }}" alt="Maya Bank">
+                    </div>
+                    <div class="bank" data-id="gcash">
+                        <img src="{{ asset('images/other-banks/gcash.png') }}" alt="GCash">
                     </div>
                     <div class="bank" data-id="gcash-app">
                         <img src="{{ asset('images/other-banks/gcash.png') }}" alt="GCash">
@@ -38,14 +41,14 @@
                     <div class="bank">
                         <img src="{{ asset('images/other-banks/shopee pay.png') }}" alt="Shopee Pay">
                     </div>
-                    <div class="bank">
+                    <div class="bank" data-id="grabpay">
                         <img src="{{ asset('images/other-banks/grab pay.png') }}" alt="Grab Pay">
                     </div>
                 </div>
         
                 <h5>Bank Transfer</h5>
                 <div class="banks">
-                    <div class="bank"  data-id="qrph">
+                    <div class="bank" data-id="qrph">
                         <img src="{{ asset('images/other-banks/qrph.png') }}" alt="QR PH">
                     </div>
                     <div class="bank">
