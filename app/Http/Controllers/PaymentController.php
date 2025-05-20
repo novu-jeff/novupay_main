@@ -18,6 +18,7 @@ class PaymentController extends Controller
     public $passwork;
     public $secretKey;
     public $baseUrl;
+    public $appCallback;
 
     public function __construct(PaymentService $PaymentService) {
         $this->PaymentService = $PaymentService;
@@ -25,6 +26,7 @@ class PaymentController extends Controller
         $this->passwork = env('ICOREPAY_PASSWORK');
         $this->secretKey = env('ICOREPAY_SECRET');
         $this->baseUrl = env('ICOREPAY_BASE_URL');
+        $this->appCallback = env('APP_CALLBACK');
     }
 
     public function saveTransaction(Request $request) {
@@ -34,6 +36,9 @@ class PaymentController extends Controller
         $insert = Transactions::create([
             'reference_no' => $payload['reference_no'],
             'amount' => $payload['amount'],
+            'payment_id' => $payload['payment_id'] ?? null,
+            'by_method' => $payload['by_method'] ?? null,
+            'external_id' => $payload['external_id'] ?? null
         ]);
 
         if (!$insert) {
@@ -54,36 +59,62 @@ class PaymentController extends Controller
 
     public function callback($operation_id) {
 
-        $record = Transactions::where('reference_no', $operation_id)
-            ->first();
+        $response = $this->getStatus($operation_id);
 
-        if(!$record) {
-            return response()
-                ->json([
-                    'status' => 'error',
-                    'message' => 'reference_no ' . $operation_id . ' does not exists'
+        if($response && isset($response['operation']) && $response['operation']['status'] == 'paid') {
+            $this->initPaid($response, $operation_id);
+        } 
+    }
+
+    private function getStatus(string $operation_id) {
+
+        $payload = [
+            'service_id' => $this->username,
+            'passwork' => $this->passwork,
+            'operation_id' => $operation_id,         
+        ];
+    
+        $response = $this->PaymentService->getStatus($payload);
+    
+        return $response ?? []; 
+    }
+
+    private function initPaid(array $payload, string $operation_id) {
+
+        $novupay_transaction = Transactions::where('operation_id', $operation_id)->first();
+        
+        if($novupay_transaction) {
+            $reference_no = $novupay_transaction->reference_no;
+            $app_api = env('APP_CALLBACK') . '/api/v1/callback/' . $reference_no;
+            $date_paid = $novupay_transaction->date_paid;
+
+            if(is_null($date_paid)) {
+
+                // $novupay_transaction->date_paid = Carbon::now();
+                // $novupay_transaction->save();
+                
+                $app_api = 'http://novustream-test.novulutions.com/api/v1/callback/' . $reference_no;
+
+                $ch = curl_init($app_api);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json'
                 ]);
-        }
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        
+                $response = curl_exec($ch);
+                curl_close($ch);
+        
+                $decodedResponse = json_decode($response, true);
 
-        if($record->date_paid) {
-            return response()
-                ->json([
-                    'status' => 'error',
-                    'message' => 'reference_no ' . $operation_id . ' is already paid'
-                ]);
-        }
+                dd($decodedResponse);
 
-        $now = Carbon::now()->format('Y-m-d H:i:s');
 
-        Transactions::where('reference_no', $operation_id)
-            ->update([
-                'date_paid' => $now,
-            ]);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'updated payment info'
-        ]);
+            }
+        }        
     }
 
 

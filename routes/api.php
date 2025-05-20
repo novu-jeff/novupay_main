@@ -30,6 +30,5 @@ Route::prefix('v1')->group(function() {
         ->name('payment.status');
     Route::get('/callback/{operation_id}', [PaymentController::class, 'callback'])
         ->name('payment.callback');
-
 });
 

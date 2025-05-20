@@ -20,6 +20,7 @@ class PaymentNavigationController extends Controller
     public $payInUrl;
     public $payOutUrl;
     public $statusUrl;
+    public $callbackUrl;
 
     public function __construct(PaymentService $PaymentService) {
         $this->PaymentService = $PaymentService;
@@ -30,6 +31,7 @@ class PaymentNavigationController extends Controller
         $this->payInUrl = env('ICOREPAY_PAYIN');
         $this->payOutUrl = env('ICOREPAY_PAYOUT');
         $this->statusUrl = env('ICOREPAY_STATUS');
+        $this->callbackUrl = env('ICOREPAY_CALLBACK');
     }
 
     public function show(string $transaction_id) {
@@ -93,14 +95,16 @@ class PaymentNavigationController extends Controller
         
         $unique = $this->generatePaymentID();
 
+        $callback = $this->callbackUrl . '/' . $unique;
+        
         $amount = $model->amount;
         
         $data['operation_id'] = $unique;
         $data['payment_id'] = $unique;
         $data['service_id'] = $this->username;
         $data['passwork'] = $this->passwork;
-        $data['callback_url'] = env('CALLBACK_URL');
-        $data['return_url'] = env('CALLBACK_URL');
+        $data['callback_url'] = $callback;
+        $data['return_url'] = $callback;
         $data['amount'] = $amount;
         $data['currency'] = 'PHP';
         $data['by_method'] = $payload['by_method'];
@@ -160,37 +164,6 @@ class PaymentNavigationController extends Controller
     
     private function generatePaymentID() {
         return now()->format('YmdHis') . '-' . Str::uuid()->toString(8);
-    }
-
-    private function selectMerchant(string $merchant) {
-
-        switch($merchant) {
-            
-            case 'gcash-app': 
-                return 'Gcash Payment';
-            case 'gcash':
-                return 'Gcash Payment';
-            case 'maya':
-                return 'Maya Payment';
-            case 'grabpay':
-                return 'Grabpay Payment';
-            case 'qrph':
-                return 'QRPH Payment';
-            
-        }
-
-    }
-
-    private function getPaymentLogo(string $payment_type) {
-        $list = [
-            'gcash-app' => 'other-banks/gcash.png',
-            'gcash' => 'other-banks/gcash.png',
-            'maya' => 'banks/mayabank.png',
-            'grabpay' => 'other-banks/grab pay.png',
-            'qrph' => 'other-banks/qrph.png'
-        ];
-
-        return $list[$payment_type];
     }
 
 }
