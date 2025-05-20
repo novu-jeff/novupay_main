@@ -14,14 +14,14 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
             $table->string('reference_no');
+            $table->string('amount');
             $table->string('payment_id')
                 ->nullable();
             $table->string('by_method')
                 ->nullable();
-            $table->json('content');
-            $table->json('request')
+            $table->string('external_id')
                 ->nullable();
-            $table->string('callback')
+            $table->string('operation_id')
                 ->nullable();
             $table->string('date_paid')
                 ->nullable();

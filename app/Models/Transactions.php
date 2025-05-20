@@ -12,12 +12,12 @@ class Transactions extends Model
     protected $table = 'transactions';
     protected $fillable = [
         'reference_no',
+        'amount',
         'payment_id',
         'by_method',
-        'content',
-        'status',
-        'request',
-        'callback'
+        'external_id',
+        'operation_id',
+        'date_paid',
     ];
 
 }

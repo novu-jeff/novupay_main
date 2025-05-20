@@ -90,26 +90,20 @@ class PaymentNavigationController extends Controller
                 'message' => 'Transaction not found'
             ];
         }
-
-        $data = json_decode($model->content, true) ?? [];
-
-        if (!is_array($data)) {
-            throw new Exception("Invalid JSON data structure.");
-        }
-        
-        if (isset($payload['by_method'])) {
-            $data['by_method'] = $payload['by_method'];
-        }
         
         $unique = $this->generatePaymentID();
 
+        $amount = $model->amount;
+        
         $data['operation_id'] = $unique;
         $data['payment_id'] = $unique;
         $data['service_id'] = $this->username;
         $data['passwork'] = $this->passwork;
         $data['callback_url'] = env('CALLBACK_URL');
         $data['return_url'] = env('CALLBACK_URL');
+        $data['amount'] = $amount;
         $data['currency'] = 'PHP';
+        $data['by_method'] = $payload['by_method'];
         $data['merchant'] = [
             'name' => $this->merchant,
         ];
@@ -124,7 +118,8 @@ class PaymentNavigationController extends Controller
 
         $model->by_method = $data['by_method'];
         $model->payment_id = $data['payment_id'];
-        $model->request = json_encode($response);
+        $model->external_id = $response['external_id'];
+        $model->operation_id = $response['operation_id'];
         $model->save();
 
         return redirect()->route('payment.merchants.pay', ['transaction_id' => $transaction_id, 'operation_id' => $unique]);
@@ -135,10 +130,13 @@ class PaymentNavigationController extends Controller
         $record = Transactions::where('reference_no', $reference_no)
             ->where('payment_id', $payment_id)
             ->first();
+
         if($record) {
+
             $record->payment_id = null;
             $record->by_method = null;
-            $record->request = null;
+            $record->external_id = null;
+            $record->operation_id = null;
             $record->save();
 
             return redirect()->route('payment.merchants.show', ['transaction_id' => $reference_no]);

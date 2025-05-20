@@ -28,7 +28,7 @@ Route::prefix('v1')->group(function() {
         ->name('payment.pay');
     Route::post('/status/{operation_id}', [PaymentController::class, 'status'])
         ->name('payment.status');
-    Route::post('/callback', [PaymentController::class, 'callback'])
+    Route::get('/callback/{operation_id}', [PaymentController::class, 'callback'])
         ->name('payment.callback');
 
 });
