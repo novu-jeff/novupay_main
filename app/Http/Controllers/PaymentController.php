@@ -34,9 +34,6 @@ class PaymentController extends Controller
         $insert = Transactions::create([
             'reference_no' => $payload['reference_no'],
             'amount' => $payload['amount'],
-            'payment_id' => $payload['payment_id'] ?? null,
-            'by_method' => $payload['by_method'] ?? null,
-            'external_id' => $payload['external_id'] ?? null
         ]);
 
         if (!$insert) {
