@@ -16,7 +16,7 @@
                 <div class="header">
                     <h5>{{$payload['title']}}</h5>
                     <p>{{$payload['message']}}</p>
-                    <h3>{{$payload['amount']}}</h3>
+                    <h3>PHP{{$payload['amount']}}</h3>
                 </div>
             </div>
             <hr>
@@ -53,7 +53,7 @@
                             Total Payment
                         </div>
                         <div>
-                            {{$payload['amount']}}
+                            PHP{{$payload['amount']}}
                         </div>
                     </div>
                 </div>

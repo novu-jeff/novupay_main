@@ -32,9 +32,9 @@
                     <div class="bank" data-id="gcash">
                         <img src="{{ asset('images/other-banks/gcash.png') }}" alt="GCash">
                     </div>
-                    <div class="bank" data-id="gcash-app">
+                    <!-- <div class="bank" data-id="gcash-app">
                         <img src="{{ asset('images/other-banks/gcash.png') }}" alt="GCash">
-                    </div>
+                    </div> -->
                     <div class="bank" data-id="grabpay">
                         <img src="{{ asset('images/other-banks/grab pay.png') }}" alt="Grab Pay">
                     </div>

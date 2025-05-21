@@ -43,6 +43,7 @@ class PaymentNavigationController extends Controller
         }
         
         $response = $this->getStatus($data->payment_id ?? '');
+
         if(!isset($response['external_id'])) {
             return view('payment.index', ['transaction_id' => $transaction_id]);
         } else {
@@ -56,6 +57,23 @@ class PaymentNavigationController extends Controller
 
         if(empty($response)) {
             return redirect()->route('payment.merchants.show', ['transaction_id' => $transaction_id, 'operation_id' => $operation_id]);
+        }
+
+        if(isset($response['operation']['status']) && $response['operation']['status'] == 'paid') {
+            
+            $transaction = Transactions::where('operation_id', $operation_id)->first();
+
+            $payload = [
+                'status' => 'paid',
+                'title' => 'Payment Success!',
+                'message' => 'Your payment has been successfully processed.',
+                'reference_no' => $transaction_id,
+                'amount' => number_format($this->convertAmount($transaction->amount ?? 0), 2),
+                'payment_id' => $transaction->payment_id,
+                'date_paid' => $transaction->date_paid
+            ];
+
+            return view('payment.paid', compact('payload'));
         }
 
         $payload = $response;
@@ -137,13 +155,18 @@ class PaymentNavigationController extends Controller
 
         if($record) {
 
-            $record->payment_id = null;
-            $record->by_method = null;
-            $record->external_id = null;
-            $record->operation_id = null;
-            $record->save();
+            if(is_null($record->date_paid)) {
+                $record->payment_id = null;
+                $record->by_method = null;
+                $record->external_id = null;
+                $record->operation_id = null;
+                $record->save();
 
-            return redirect()->route('payment.merchants.show', ['transaction_id' => $reference_no]);
+                return redirect()->route('payment.merchants.show', ['transaction_id' => $reference_no]);
+            } 
+
+            return redirect()->route('payment.merchants.pay', ['transaction_id' => $reference_no, 'operation_id' => $record->operation_id]);
+
         }
 
         return 'error';
@@ -165,5 +188,23 @@ class PaymentNavigationController extends Controller
     private function generatePaymentID() {
         return now()->format('YmdHis') . '-' . Str::uuid()->toString(8);
     }
+
+    private function convertAmount(string $rawAmount)
+    {
+
+        $length = strlen($rawAmount);
+
+        if ($length <= 2) {
+            // For values like '50' → 0.50
+            $amount = '0.' . str_pad($rawAmount, 2, '0', STR_PAD_LEFT);
+        } else {
+            // Insert decimal before last 2 digits
+            $amount = substr($rawAmount, 0, -2) . '.' . substr($rawAmount, -2);
+        }
+
+        return $amount;
+    }
+
+
 
 }

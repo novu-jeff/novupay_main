@@ -63,6 +63,8 @@ class PaymentController extends Controller
 
         if($response && isset($response['operation']) && $response['operation']['status'] == 'paid') {
             $this->initPaid($response, $operation_id);
+            $transaction = Transactions::where('operation_id', $operation_id)->first();
+            return redirect()->route('payment.merchants.pay', ['transaction_id' => $transaction->reference_no, 'operation_id' => $operation_id]);
         } 
     }
 
@@ -84,16 +86,17 @@ class PaymentController extends Controller
         $novupay_transaction = Transactions::where('operation_id', $operation_id)->first();
         
         if($novupay_transaction) {
+            
             $reference_no = $novupay_transaction->reference_no;
-            $app_api = env('APP_CALLBACK') . '/api/v1/callback/' . $reference_no;
+
             $date_paid = $novupay_transaction->date_paid;
 
             if(is_null($date_paid)) {
 
-                // $novupay_transaction->date_paid = Carbon::now();
-                // $novupay_transaction->save();
+                $novupay_transaction->date_paid = Carbon::now();
+                $novupay_transaction->save();
                 
-                $app_api = 'http://novustream-test.novulutions.com/api/v1/callback/' . $reference_no;
+                $app_api = $this->appCallback . '/' . $reference_no;
 
                 $ch = curl_init($app_api);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -108,10 +111,6 @@ class PaymentController extends Controller
                 curl_close($ch);
         
                 $decodedResponse = json_decode($response, true);
-
-                dd($decodedResponse);
-
-
 
             }
         }        
