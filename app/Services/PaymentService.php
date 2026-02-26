@@ -119,5 +119,100 @@ class PaymentService {
     
     }
 
+    public function createHitpayPaymentRequest(string $reference_no, array $payload): ?array
+    {
+        try {
+            $result = $this->getBill($reference_no, $payload, false);
+
+            if (isset($result['error'])) {
+                \Log::error('HitPay error: ' . $result['error']);
+                return null;
+            }
+
+            $billData = $result['data']['current_bill'] ?? null;
+            if (!$billData) {
+                \Log::error('Missing bill data for HitPay', ['reference_no' => $reference_no]);
+                return null;
+            }
+
+            $amount = number_format((float)$billData['amount'], 2, '.', '');
+            if($amount <= 2000) {
+                $hitpay_fee = 20;
+            }else {
+                $hitpay_fee = ($amount * 0.01);
+            }
+            $novupay_fee = 10;
+            $additional_service_fee = $hitpay_fee + $novupay_fee;
+
+            $final_amount = (float)$amount + $additional_service_fee;
+            
+            // Apply testing mode if enabled
+            if (env('NOVUPAY_FINAL_AMOUNT') === 'Testing') {
+                $final_amount = 1;
+            }
+
+            $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Sta. Rita Customer');
+            $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'srwdsystem2023@gmail.com');
+            $account_no = $result['data']['client']['account_no'] ?? ($payload['account_no'] ?? '000000');
+
+            // 🧾 Purpose formatting
+            $purpose = "Amount Due: PHP {$amount}\nConvenience Fee: PHP {$additional_service_fee}\nAccount #: {$account_no}";
+
+            // ⚙️ Default payment methods (include QRPH if allowed)
+            // $paymentMethods = ["gcash","gcash_qr","qrph_netbank","upay_bayd","upay_ecpy","upay_instapay","upay_online","upay_pchc","upay_plwn","xpay_card"];
+            $paymentMethods = ['gcash', 'qrph_netbank'];
+            // dd($final_amount, $paymentMethods);
+
+            // 🚫 If total amount < 800, remove QRPH from payment options
+            if ($final_amount < 800) {
+                $paymentMethods = array_filter($paymentMethods, fn($m) => $m !== "qrph_netbank");
+                \Log::info('Removed QRPH (amount < 800)', [
+                    'reference_no' => $reference_no,
+                    'amount' => $final_amount
+                ]);
+            // removed gcash since it is costing us 2.5% unlike qrph which is only 1% or 20php per transaction
+            } else {
+                $paymentMethods = array_filter($paymentMethods, fn($m) => $m !== "gcash");
+            }
+
+            $hitpayPayload = [
+                'amount' => $final_amount,
+                'currency' => 'PHP',
+                'email' => $email,
+                'purpose' => $purpose,
+                'reference_number' => $reference_no,
+                'redirect_url' => env('HITPAY_REDIRECT_URL'),
+                'webhook' => env('HITPAY_WEBHOOK_URL'),
+                'send_email' => true,
+                'send_sms' => true,
+                'name' => $payor,
+                'add_admin_fee' => true,
+                'admin_fee' => '15.00',
+                'payment_methods' => array_values($paymentMethods),
+            ];
+
+            // dd($hitpayPayload);
+
+            $response = \Http::withHeaders([
+                'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
+            ])->post(env('HITPAY_API_URL') . '/payment-requests', $hitpayPayload);
+
+            // dd($response->body());
+            if ($response->failed()) {
+                \Log::error('HitPay API request failed', ['body' => $response->body()]);
+                return null;
+            }
+
+            $data = $response->json();
+            return [
+                'id' => $data['id'] ?? null,
+                'url' => $data['url'] ?? null,
+            ];
+        } catch (\Exception $e) {
+            \Log::error('createHitpayPaymentRequest exception: ' . $e->getMessage());
+            return null;
+        }
+    }
+
 
 }

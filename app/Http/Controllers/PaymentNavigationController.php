@@ -38,8 +38,11 @@ class PaymentNavigationController extends Controller
     
         $data = Transactions::where('reference_no', $transaction_id)->first();
 
+        // Fallback for external systems (e.g. subic_novustream) when no transaction exists
         if (!$data) {
-            return abort(404, 'Transaction not found.');
+            return view('payment.fallback', [
+                'reference_no' => $transaction_id,
+            ]);
         }
         
         $response = $this->getStatus($data->payment_id ?? '');

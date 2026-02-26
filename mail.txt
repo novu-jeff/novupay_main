@@ -1,0 +1,3 @@
+mail._domainkey	IN	TXT	( "v=DKIM1; h=sha256; k=rsa; "
+	  "p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtoudulxbsHPZAx4RsWJcgGYUJc0bBzDmUbDBhxnniu9BYwLlBKsNRhFLMTFjsTxJ6/ccjc+QwXIjm0barWacPC9TNML0mT+349/7nT4wuil1GIi9PwpqG+D9GSumolswNZ83waDAosaojc22OBVLQrPCOr+fC0Kt2Jm4I86k9dNnnGphgWZ74MoTgPh98oj9w85j3iAVjTEcwG"
+	  "Gp5yxMMFrChi6LgQKXC/G924sAhx5E+eAb9FiY3AC1Q0/JGfEyG6CIxTxTBJJCRMSf+J3nsg+zjjk5rLx279UFBCziv75AOzFboNCTm9jTb5bBFielFAlTBIopc0z8TGEdDTjM+wIDAQAB" )  ; ----- DKIM key mail for novupay.ph

@@ -25,6 +25,8 @@ return new class extends Migration
                 ->nullable();
             $table->string('date_paid')
                 ->nullable();
+            $table->string('callback_url')
+                ->nullable();
             $table->timestamps();
         });
     }

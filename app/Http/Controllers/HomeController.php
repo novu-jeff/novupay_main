@@ -50,4 +50,20 @@ class HomeController extends Controller
 
         return view('home.status', compact('data'));
     }
+
+    public function contact() {
+        return view('pages.contact');
+    }
+
+    public function demo() {
+        return view('pages.demo');
+    }
+
+    public function about() {
+        return view('pages.about');
+    }
+
+    public function apiDocs() {
+        return view('pages.api-docs');
+    }
 }

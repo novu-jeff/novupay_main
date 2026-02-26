@@ -31,4 +31,7 @@ return [
 
     'supports_credentials' => false,
 
+    'paths' => ['api/*', 'payment-request/*'],
+
+
 ];

@@ -4,7 +4,7 @@
     <div class="bg-color"></div>
     <div class="container">
         <div class="content">
-            <h1 class="text-center">NOVULUTIONS' PAYMENT GATEWAY</h1>
+            <h1 class="text-center">NOVUPAY PAYMENT GATEWAY</h1>
             <div class="card shadow-lg">
                 <h5>Banks</h5>
                 <div class="banks mb-3">
@@ -61,7 +61,7 @@
                     </form>
                 </div>
                 <div class="pt-1 d-flex justify-content-center text-uppercase fw-bold text-muted" style="font-size: 12px;">
-                    Powered by Novulutions Inc.
+                    Powered by Novupay
                 </div>
             </div>
         </div>

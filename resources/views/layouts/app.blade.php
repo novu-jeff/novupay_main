@@ -3,7 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>NovuPay | Novulutions Inc.</title>
+    <title>NovuPay</title>
+    <link rel="icon" type="image/png" href="{{ asset('images/novupay-icon.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/novupay-icon.png') }}">
     @vite(['resources/sass/app.scss', 'resources/sass/status.scss', 'resources/js/app.js'])
 </head>
 <body>

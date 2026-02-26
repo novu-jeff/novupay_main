@@ -3,17 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Models\Transactions;
+use App\Models\Bill;
 use App\Services\PaymentService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class PaymentController extends Controller
 {
 
     public $PaymentService;
+    public $merchant;
     public $username;
     public $passwork;
     public $secretKey;
@@ -22,11 +25,12 @@ class PaymentController extends Controller
 
     public function __construct(PaymentService $PaymentService) {
         $this->PaymentService = $PaymentService;
+        $this->merchant = env('ICOREPAY_MERCHANT');
         $this->username = env('ICOREPAY_USERNAME');
         $this->passwork = env('ICOREPAY_PASSWORK');
         $this->secretKey = env('ICOREPAY_SECRET');
         $this->baseUrl = env('ICOREPAY_BASE_URL');
-        $this->appCallback = env('APP_CALLBACK');
+        $this->appCallback = env('ICOREPAY_CALLBACK');
     }
 
     public function saveTransaction(Request $request) {
@@ -38,7 +42,8 @@ class PaymentController extends Controller
             'amount' => $payload['amount'],
             'payment_id' => $payload['payment_id'] ?? null,
             'by_method' => $payload['by_method'] ?? null,
-            'external_id' => $payload['external_id'] ?? null
+            'external_id' => $payload['external_id'] ?? null,
+            'callback_url' => $payload['callback_url'] ?? null
         ]);
 
         if (!$insert) {
@@ -49,12 +54,47 @@ class PaymentController extends Controller
                 ]);
         }
 
+        if(isset($payload['isExternal']) && $payload['isExternal']) {
+
+            $unique = $this->generatePaymentID();
+
+            $callback = $this->appCallback;
+            
+            $amount = $payload['amount'];
+            
+            $data['operation_id'] = $unique;
+            $data['payment_id'] = $unique;
+            $data['service_id'] = $this->username;
+            $data['passwork'] = $this->passwork;
+            $data['callback_url'] = $callback;
+            $data['return_url'] = $callback;
+            $data['amount'] = $amount;
+            $data['currency'] = 'PHP';
+            $data['by_method'] = $payload['by_method'];
+            $data['merchant'] = [
+                'name' => $this->merchant,
+            ];
+
+            $response = $this->PaymentService->createPayment($data);
+
+            return response()
+                ->json($response);
+
+        }
+
         return response()
             ->json([
                 'status' => 'success',
                 'reference_no' => $payload['reference_no'],
                 'message' => 'inserted',
             ]);
+
+
+    }
+
+    private function generatePaymentID() {
+        // Use full UUID; no length argument is supported on toString()
+        return now()->format('YmdHis') . '-' . Str::uuid()->toString();
     }
 
     public function callback($operation_id) {
@@ -114,6 +154,82 @@ class PaymentController extends Controller
 
             }
         }        
+    }
+
+    public function handleQrPayment(Request $request)
+    {
+        $reference = $request->query('ref');
+        $amount = $request->query('amount');
+        $account = $request->query('account_no');
+
+        if (!$reference || !$amount) {
+            abort(400, 'Missing required parameters.');
+        }
+
+        $bill = Bill::firstOrCreate(
+            ['reference_no' => $reference],
+            [
+                'account_no' => $account,
+                'amount' => $amount,
+                'status' => 'pending',
+            ]
+        );
+
+        // ✅ Call HitPay
+        $hitpayData = $this->createHitpayPaymentRequest([
+            'amount' => $bill->amount,
+            'reference_no' => $bill->reference_no,
+            'name' => 'Bill #' . $bill->reference_no,
+        ]);
+
+        if ($hitpayData && !empty($hitpayData['url'])) {
+            $bill->update([
+                'initiated_at' => now(),
+                'hitpay_reference' => $hitpayData['id'] ?? null,
+                'hitpay_url' => $hitpayData['url'],
+                'payload' => $hitpayData,
+            ]);
+
+            // Redirect user directly to HitPay checkout
+            return redirect()->away($hitpayData['url']);
+        }
+
+        return response()->json(['error' => 'Failed to create HitPay request'], 500);
+    }
+
+
+    protected function createHitpayPaymentRequest(array $data)
+    {
+        $apiKey = config('services.hitpay.api_key') ?? env('HITPAY_API_KEY');
+        $merchantId = config('services.hitpay.merchant_id') ?? env('HITPAY_MERCHANT_ID');
+        $url = env('HITPAY_URL', 'https://api.hit-pay.com/v1/payment-requests');
+
+        $payload = [
+            'amount' => $data['amount'],
+            'currency' => 'PHP',
+            'reference_number' => $data['reference_no'],
+            'redirect_url' => env('HITPAY_REDIRECT_URL'),
+            'webhook' => env('HITPAY_WEBHOOK_URL'),
+            'name' => $data['name'] ?? 'Novupay Bill Payment',
+            'purpose' => $data['purpose'] ?? 'Bill payment',
+        ];
+
+        try {
+            $response = Http::withHeaders([
+                'X-BUSINESS-API-KEY' => $apiKey,
+                'X-Requested-With' => 'XMLHttpRequest',
+            ])->post($url, $payload);
+
+            if ($response->successful()) {
+                return $response->json();
+            } else {
+                \Log::error('HitPay API Error', ['body' => $response->body()]);
+                return null;
+            }
+        } catch (\Throwable $th) {
+            \Log::error('HitPay Exception', ['message' => $th->getMessage()]);
+            return null;
+        }
     }
 
 

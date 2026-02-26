@@ -6,7 +6,7 @@
             </div>
             <div>
                 <h1>Ready to Elevate Your Payment Experience?</h1>
-                <button>Get Started</button>
+                <a href="{{ route('contact') }}" class="btn-primary" style="display:inline-block; margin-top:40px;">Get Started</a>
             </div>            
         </div>
     </div>
@@ -14,11 +14,10 @@
         <div class="container">
             <div class="d-md-flex m-auto text-center justify-content-center justify-content-md-between">
                 <img src="{{asset('images/novupay-logo.png')}}" class="novupay-logo" alt="logo">
-                <img src="{{asset('images/novu-logo.png')}}" class="novupay-logo" alt="logo">
             </div>
             <hr>
             <div class="text-center text-uppercase fw-bold">
-                &copy; 2025 | Novulutions Inc.
+                Copyright &copy; {{ date('Y') }} | Novupay
             </div>
         </div>
     </div>

@@ -31,4 +31,11 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'hitpay' => [
+        'api_key' => env('HITPAY_API_KEY'),
+        'merchant_id' => env('HITPAY_MERCHANT_ID'),
+        'url' => env('HITPAY_API_URL'),
+    ],
+
+
 ];
