@@ -11,6 +11,7 @@ use App\Models\KaelcoBill;
 use App\Models\StaritaBill;
 use App\Models\MorongBill;
 use App\Models\StaritaHitpayTransaction;
+use App\Services\KaelcoWebhookNotifier;
 
 class PaymentWebhookController extends Controller
 {
@@ -97,16 +98,26 @@ class PaymentWebhookController extends Controller
             ?? $data['id']
             ?? null;
 
+        // Merge webhook data into payload so we keep original payor/customer (createHitpay sets these); webhook may send customer.name
+        $existingPayload = is_array($bill->payload) ? $bill->payload : [];
+        $mergedPayload = array_merge($existingPayload, $data);
+
+        $connection = method_exists($bill, 'getConnectionName') && $bill->getConnectionName()
+            ? $bill->getConnectionName()
+            : config('database.default');
+
         $updateData = [
             'status'  => $mappedStatus,
             'paid_at' => $mappedStatus === 'paid' ? now() : null,
-            'payload' => $data,
+            'payload' => $mergedPayload,
         ];
-        if (method_exists($bill, 'getConnectionName')) {
-            $connection = $bill->getConnectionName() ?: config('database.default');
-            if (Schema::connection($connection)->hasColumn($bill->getTable(), 'hitpay_reference')) {
-                $updateData['hitpay_reference'] = $resolvedHitpayRef;
-            }
+        if (Schema::connection($connection)->hasColumn($bill->getTable(), 'hitpay_reference')) {
+            $updateData['hitpay_reference'] = $resolvedHitpayRef;
+        }
+        // Keep payor column set when webhook provides customer name (so sta-rita sync always has a source)
+        $payorFromWebhook = $data['customer']['name'] ?? $data['name'] ?? $data['customer_name'] ?? null;
+        if (!empty($payorFromWebhook) && Schema::connection($connection)->hasColumn($bill->getTable(), 'payor')) {
+            $updateData['payor'] = trim((string) $payorFromWebhook);
         }
 
         $bill->update($updateData);
@@ -117,6 +128,13 @@ class PaymentWebhookController extends Controller
             'status'       => $mappedStatus,
             'novustream'   => in_array($utility, ['srwd', 'morong'], true),
         ]);
+
+        // Notify Kaelco when payment is completed (dynamic URL; payment_method from webhook payload)
+        if ($utility === 'kaelco' && $mappedStatus === 'paid') {
+            $bill->refresh();
+            $paymentMethod = $this->extractPaymentMethodFromWebhookPayload($mergedPayload);
+            KaelcoWebhookNotifier::notifyPaymentCompleted($bill, $paymentMethod);
+        }
 
         if ($utility === 'srwd') {
             StaritaHitpayTransaction::where('reference_no', $bill->reference_no)->update([
@@ -260,6 +278,31 @@ class PaymentWebhookController extends Controller
         }
 
         return 'pelco';
+    }
+
+    /**
+     * Extract payment_type from HitPay webhook payload (payments[].payment_type).
+     */
+    private function extractPaymentMethodFromWebhookPayload(array $payload): ?string
+    {
+        $payments = $payload['payments'] ?? [];
+        if (!is_array($payments)) {
+            return null;
+        }
+        foreach ($payments as $p) {
+            if (!is_array($p)) {
+                continue;
+            }
+            $status = strtolower((string) ($p['status'] ?? ''));
+            if (!in_array($status, ['succeeded', 'completed'], true)) {
+                continue;
+            }
+            $type = $p['payment_type'] ?? $p['payment_method'] ?? $p['method'] ?? null;
+            if ($type !== null && $type !== '') {
+                return (string) $type;
+            }
+        }
+        return $payload['payment_method'] ?? $payload['method'] ?? $payload['by_method'] ?? null;
     }
 }
 

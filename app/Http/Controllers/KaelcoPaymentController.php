@@ -77,8 +77,8 @@ class KaelcoPaymentController extends Controller
         // ----------------------------------------------------------
         // KAELCO-specific fee computation
         // ----------------------------------------------------------
-        $qrph_fee  = $amount <= 2000 ? 20 : ($amount * 0.01);
-        $gcash_fee = $amount * 0.023;
+        $qrph_fee  = $total_amount <= 2000 ? 20 : ($total_amount * 0.01);
+        $gcash_fee = $total_amount * 0.023;
 
         $novupay_fee = 25;
         $cType = $payload['ctype'] ?? null;
@@ -145,7 +145,7 @@ class KaelcoPaymentController extends Controller
 
         $email = $payload['email'] ?? 'support@novupay.ph';
         $payor = $payload['name'] ?? 'Kaelco Customer';
-        $final_amount = 1;
+        $final_amount = $total_amount;
         $hitpayPayload = [
             'amount'           => $final_amount,
             'currency'         => 'PHP',
@@ -161,7 +161,7 @@ class KaelcoPaymentController extends Controller
             'admin_fee'        => $additional_service_fee,
             'expiry_date'      => $due_date_string,
             'description'      => $descriptionText,
-            'payment_methods'  => $paymentMethodsAll,
+            'payment_methods'  => $paymentMethods,
         ];
 
         Log::info('Sending KAELCO HitPay Request', $hitpayPayload);

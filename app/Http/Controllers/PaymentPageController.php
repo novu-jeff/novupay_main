@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;  
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Http;
-use App\Http\Controllers\PaymentWebhookController;
+use App\Services\KaelcoWebhookNotifier;
 
 class PaymentPageController extends Controller
 {
@@ -122,9 +122,8 @@ class PaymentPageController extends Controller
             'utility' => $utility,
         ]);
         if ($utility === 'kaelco') {
-            $this->callKaelcoWebhook($bill);
+            KaelcoWebhookNotifier::notifyPaymentCompleted($bill);
         }
-
 
         return view('payment.paid', compact('payload'));
     }
@@ -394,31 +393,4 @@ class PaymentPageController extends Controller
     }
 
 
-    private function callKaelcoWebhook($bill)
-    {
-
-        // dd($bill);
-        try {
-            $url = "https://www.kaelco.org/Upgrade/dist/API_TESTING/novupay_webhook.php";
-
-            $payload = [
-                "transaction_id"   => $bill->hitpay_reference,
-                "reference_number" => $bill->reference_no,
-                "status"           => 'completed',
-                "payment_method"   => $bill->payment_method ?? 'Online',
-            ];
-
-            $response = Http::asForm()->post($url, $payload);
-            // dd($response->body());
-            Log::info("KAELCO Webhook called", [
-                "payload" => $payload,
-                "response" => $response->body()
-            ]);
-
-            return $response->successful();
-        } catch (\Exception $e) {
-            Log::error("KAELCO Webhook Error: " . $e->getMessage());
-            return false;
-        }
-    }
 }

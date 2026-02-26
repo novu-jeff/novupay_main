@@ -37,5 +37,8 @@ return [
         'url' => env('HITPAY_API_URL'),
     ],
 
+    'kaelco' => [
+        'webhook_url' => env('KAELCO_WEBHOOK_URL', 'https://www.kaelco.org/Upgrade/dist/API/novupay_webhook.php'),
+    ],
 
 ];
