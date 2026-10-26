@@ -4,8 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>
-        {{ isset($payload['status']) ? 'Payment ' . ucwords($payload['status']) : 'Payment Expired' }} 
-        | NovuPay
+        @if(!empty($pageTitle))
+            {{ $pageTitle }} | NovuPay
+        @elseif(isset($payload['status']))
+            Payment {{ ucwords($payload['status']) }} | NovuPay
+        @else
+            Payment Expired | NovuPay
+        @endif
     </title>
 
     @vite(['resources/sass/status.scss', 'resources/js/status.js'])
@@ -52,6 +57,10 @@
 
         .icon.error {
             background: #dc3545;
+        }
+
+        .icon.pending {
+            background: #f0a202;
         }
 
         .header h5 {

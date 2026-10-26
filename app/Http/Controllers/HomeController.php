@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\NovupayWhitePaperDocx;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
@@ -65,5 +66,29 @@ class HomeController extends Controller
 
     public function apiDocs() {
         return view('pages.api-docs');
+    }
+
+    public function novupayWhitePaper() {
+        return view('pages.novupay-whitepaper');
+    }
+
+    public function novupayWhitePaperDocx(NovupayWhitePaperDocx $docx) {
+        return $docx->downloadResponse();
+    }
+
+    public function novupayProcessFlow() {
+        return view('pages.novupay-process-flow');
+    }
+
+    public function novustreamWhitePaper() {
+        return view('pages.novustream-whitepaper');
+    }
+
+    public function novusurgeWhitePaper() {
+        return view('pages.novusurge-whitepaper');
+    }
+
+    public function novusurgeMeterInspectionWhitePaper() {
+        return view('pages.novusurge-meter-inspection-whitepaper');
     }
 }

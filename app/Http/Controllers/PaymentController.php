@@ -176,7 +176,7 @@ class PaymentController extends Controller
         );
 
         // ✅ Call HitPay
-        $hitpayData = $this->createHitpayPaymentRequest([
+        $hitpayData = $this->createNovupayHitpayPaymentRequest([
             'amount' => $bill->amount,
             'reference_no' => $bill->reference_no,
             'name' => 'Bill #' . $bill->reference_no,
@@ -198,7 +198,7 @@ class PaymentController extends Controller
     }
 
 
-    protected function createHitpayPaymentRequest(array $data)
+    protected function createNovupayHitpayPaymentRequest(array $data)
     {
         $apiKey = config('services.hitpay.api_key') ?? env('HITPAY_API_KEY');
         $merchantId = config('services.hitpay.merchant_id') ?? env('HITPAY_MERCHANT_ID');

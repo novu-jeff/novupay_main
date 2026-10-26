@@ -5,9 +5,9 @@
 @php
     $status = strtolower($payload['status'] ?? 'unknown');
 
-    // ⭐ Treat pending as success
-    $isSuccess = in_array($status, ['paid', 'pending', 'completed', 'succeeded']);
-    $isFailed  = in_array($status, ['failed', 'cancelled', 'canceled']);
+    $isSuccess = in_array($status, ['paid', 'completed', 'succeeded'], true);
+    $isPending = in_array($status, ['pending', 'processing'], true);
+    $isFailed  = in_array($status, ['failed', 'cancelled', 'canceled', 'declined'], true);
 @endphp
 
 <div class="outer-wrapper">
@@ -16,9 +16,11 @@
 
             {{-- TOP STATUS HEADER --}}
             <div class="top">
-                <div class="icon {{ $isSuccess ? 'success' : 'error' }}">
+                <div class="icon {{ $isSuccess ? 'success' : ($isPending ? 'pending' : 'error') }}">
                     @if($isSuccess)
                         <box-icon color='white' size='md' name='check'></box-icon>
+                    @elseif($isPending)
+                        <box-icon color='white' name='time'></box-icon>
                     @else
                         <box-icon color='white' name='x'></box-icon>
                     @endif
@@ -26,14 +28,19 @@
 
                 <div class="header">
                     <h5>
-                        {{ $isSuccess ? 'Payment Successful!' : ($isFailed ? 'Payment Failed' : 'Payment Status') }}
+                        {{ $isSuccess
+                            ? 'Payment Successful!'
+                            : ($isPending
+                                ? 'Payment Pending'
+                                : ($isFailed ? 'Payment Failed' : ($payload['title'] ?? 'Payment Status'))) }}
                     </h5>
 
                     <p>
-                        {{ $isSuccess 
+                        {{ $isSuccess
                             ? 'Thank you! Your payment has been successfully processed.'
-                            : ($isFailed ? 'Unfortunately, your payment was not completed.' : '') 
-                        }}
+                            : ($isPending
+                                ? 'Your payment is still being processed. Please check back shortly.'
+                                : ($isFailed ? 'Unfortunately, your payment was not completed.' : ($payload['message'] ?? ''))) }}
                     </p>
 
                     {{-- Total on top = Amount Due + Surcharge + Convenience Fee (for Kaelco breakdown) --}}
@@ -156,13 +163,22 @@
         </div>
 
         {{-- DOWNLOAD BUTTONS (PAID or PENDING counted as success) --}}
-        @if($isSuccess)
+        @php
+            $pdfId = $payload['payment_id'] ?? null;
+            $canDownloadPdf = $isSuccess
+                && !empty($pdfId)
+                && $pdfId !== '-'
+                && is_numeric($pdfId);
+        @endphp
+        @if($isSuccess || $isPending)
             <div class="wrapper">
                 <div class="bottom">
-                    <button onclick="downloadPDF()">
-                        <box-icon color='white' name='download'></box-icon>
-                        Download Copy
-                    </button>
+                    @if($canDownloadPdf)
+                        <button onclick="downloadPDF()">
+                            <box-icon color='white' name='download'></box-icon>
+                            Download Copy
+                        </button>
+                    @endif
 
                     <button onclick="window.location.href='/'">
                         <box-icon color='dark' name='arrow-back'></box-icon>
@@ -171,10 +187,11 @@
                 </div>
             </div>
 
+            @if($canDownloadPdf)
             {{-- DOWNLOAD FUNCTION --}}
             <script>
                 function downloadPDF() {
-                    const url = "{{ route('payment.pdf', ['id' => $payload['payment_id'] ?? '']) }}";
+                    const url = "{{ route('payment.pdf', ['id' => $pdfId]) }}";
                     const link = document.createElement('a');
                     link.href = url;
                     link.download = "";
@@ -183,34 +200,8 @@
                     link.remove();
                 }
             </script>
+            @endif
 
-            {{-- AUTO-DOWNLOAD ON FIRST LOAD --}}
-            <!-- <script>
-                document.addEventListener("DOMContentLoaded", function () {
-                    try {
-                        const paymentId = "{{ $payload['payment_id'] ?? '' }}";
-                        const flagKey = "pdf_downloaded_" + paymentId;
-
-                        if (!paymentId) return;
-
-                        if (!sessionStorage.getItem(flagKey)) {
-                            const url = "{{ route('payment.pdf', ['id' => $payload['payment_id'] ?? '']) }}";
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.style.display = 'none';
-                            document.body.appendChild(link);
-
-                            sessionStorage.setItem(flagKey, '1');
-                            link.click();
-
-                            setTimeout(() => link.remove(), 1000);
-                        }
-
-                    } catch (e) {
-                        console.error('Auto-download failed:', e);
-                    }
-                });
-            </script> -->
         @endif
 
     </div>

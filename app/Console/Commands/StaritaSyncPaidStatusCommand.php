@@ -90,13 +90,14 @@ class StaritaSyncPaidStatusCommand extends Command
                     continue;
                 }
 
-                DB::transaction(function () use ($bill, $now) {
+                DB::transaction(function () use ($bill, $hitpayId, $now) {
                     $bill->update([
                         'status' => 'paid',
                         'paid_at' => $bill->paid_at ?? $now,
                     ]);
 
                     StaritaHitpayTransaction::where('reference_no', $bill->reference_no)
+                        ->where('hitpay_id', $hitpayId)
                         ->update([
                             'status' => 'paid',
                             'paid_at' => $now,

@@ -61,11 +61,12 @@ class PaymentWebhookController extends Controller
                 break;
 
             case 'srwd':
-                $bill = StaritaBill::where('reference_no', $reference_no)->first();
+                $bill = $this->findStaritaBill($reference_no);
                 break;
 
             case 'morong':
-                $bill = MorongBill::where('reference_no', $reference_no)->first();
+                $bill = MorongBill::where('reference_no', $reference_no)->first()
+                    ?? MorongBill::where('hitpay_reference', $reference_no)->first();
                 break;
 
             default: // pelco
@@ -101,6 +102,15 @@ class PaymentWebhookController extends Controller
         // Merge webhook data into payload so we keep original payor/customer (createHitpay sets these); webhook may send customer.name
         $existingPayload = is_array($bill->payload) ? $bill->payload : [];
         $mergedPayload = array_merge($existingPayload, $data);
+        if (!empty($existingPayload['customer']) && empty(data_get($data, 'customer.name'))) {
+            $mergedPayload['customer'] = $existingPayload['customer'];
+        }
+        if (!empty($existingPayload['payor']) && empty($mergedPayload['payor'])) {
+            $mergedPayload['payor'] = $existingPayload['payor'];
+        }
+        if (!empty($existingPayload['name']) && empty($mergedPayload['name'])) {
+            $mergedPayload['name'] = $existingPayload['name'];
+        }
 
         $connection = method_exists($bill, 'getConnectionName') && $bill->getConnectionName()
             ? $bill->getConnectionName()
@@ -137,7 +147,13 @@ class PaymentWebhookController extends Controller
         }
 
         if ($utility === 'srwd') {
-            StaritaHitpayTransaction::where('reference_no', $bill->reference_no)->update([
+            $paymentRequestId = $data['payment_request_id'] ?? $data['id'] ?? null;
+            $txnQuery = StaritaHitpayTransaction::where('reference_no', $bill->reference_no);
+            // HitPay may send the SOA reference as `id`; only filter when we have a payment-request UUID.
+            if (!empty($paymentRequestId) && !str_contains(strtoupper((string) $paymentRequestId), 'SRWD')) {
+                $txnQuery->where('hitpay_id', $paymentRequestId);
+            }
+            $txnQuery->update([
                 'status' => $mappedStatus,
                 'paid_at' => $mappedStatus === 'paid' ? now() : null,
             ]);
@@ -259,6 +275,26 @@ class PaymentWebhookController extends Controller
 
 
     /**
+     * Resolve Starita bill by SOA reference or HitPay payment-request id.
+     */
+    private function findStaritaBill(string $reference): ?StaritaBill
+    {
+        $bill = StaritaBill::where('reference_no', $reference)->first();
+        if ($bill) {
+            return $bill;
+        }
+
+        if (Schema::connection('starita')->hasColumn('starita_bills', 'hitpay_reference')) {
+            $bill = StaritaBill::where('hitpay_reference', $reference)->first();
+            if ($bill) {
+                return $bill;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Detect utility by reference number
      */
     private function detectUtility($reference)
@@ -275,6 +311,17 @@ class PaymentWebhookController extends Controller
 
         if (str_contains($ref, 'MRWD') || str_contains($ref, 'MORONG') || str_starts_with($ref, 'NST-MRWD')) {
             return 'morong';
+        }
+
+        // HitPay may send payment-request UUID instead of SOA reference_no.
+        if ($this->findStaritaBill($reference)) {
+            return 'srwd';
+        }
+        if (MorongBill::where('reference_no', $reference)->orWhere('hitpay_reference', $reference)->exists()) {
+            return 'morong';
+        }
+        if (KaelcoBill::where('reference_no', $reference)->orWhere('hitpay_reference', $reference)->exists()) {
+            return 'kaelco';
         }
 
         return 'pelco';

@@ -10,13 +10,21 @@ use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Models\StaritaBill;
 use App\Models\StaritaHitpayTransaction;
+use App\Services\OverdueQrService;
 
 class NovuStreamStaritaPaymentController extends Controller
 {
+    public function __construct(
+        private readonly OverdueQrService $overdueQr
+    ) {
+    }
+
     /**
      * Creates HitPay Payment Request for Starita
+     *
+     * @param  array  $overdueMeta  optional keys: penalty_applied, penalty_amount
      */
-    public function createHitpay(array $payload)
+    public function createHitpay(array $payload, array $overdueMeta = [])
     {
         try {
             // ----------------------------------------------------
@@ -33,28 +41,60 @@ class NovuStreamStaritaPaymentController extends Controller
             $reference_no = trim($payload['reference_no']);
             $account_no   = trim($payload['account_no']);
             $amount       = (float) $payload['amount'];
+            if (!$this->overdueQr->isPastDue($payload)) {
+                $payload = $this->overdueQr->normalizeStaritaPayload($payload);
+                $payload = $this->overdueQr->stripPenaltyIfBeforeDue($payload);
+                $amount = (float) $payload['amount'];
+            }
+            $penaltyApplied = (bool) ($overdueMeta['penalty_applied'] ?? false);
+            $penaltyAmount = (float) ($overdueMeta['penalty_amount'] ?? 0);
 
             $present_reading = $payload['present_reading'] ?? null;
             $is_high_consumption = (int) ($payload['is_high_consumption'] ?? 0);
 
             $payor  = $payload['name'] ?? "Starita Customer";
-            $email  = $payload['email'] ?? "srwdsystem2023@gmail.com";
+            $email  = $payload['email'] ?? null;
             $mobile = $payload['contact_no'] ?? null;
             ['payor' => $payor, 'email' => $email, 'contact_no' => $mobile] =
                 $this->resolvePayorDetails($account_no, $payor, $email, $mobile);
 
-            // ----------------------------------------------------
-            // 3. Due date fallback: +15 days
-            // ----------------------------------------------------
-            try {
-                $dueDate = !empty($payload['due_date'])
-                    ? Carbon::parse($payload['due_date'])
-                    : Carbon::now()->addDays(15);
-            } catch (\Exception $e) {
-                $dueDate = Carbon::now()->addDays(15);
+            $existingBill = StaritaBill::where('reference_no', $reference_no)->first();
+            if ($this->isStaritaBillPaid($existingBill)) {
+                return $this->alreadyPaidHitpayResult($existingBill, $reference_no);
             }
 
+            // ----------------------------------------------------
+            // 3. Due date: payload / bill table, else +15 days
+            // HitPay requires expiry_date STRICTLY after now (date-after-now).
+            // Using bill due_date on the due date itself (or when past due with
+            // penalty mode) causes: "The expiry date must be a date after now."
+            // ----------------------------------------------------
+            $resolvedDue = $this->overdueQr->resolveDueDate($payload);
+            if ($resolvedDue) {
+                $billDueEnd = $resolvedDue->copy()->timezone('Asia/Manila')->endOfDay();
+            } else {
+                try {
+                    $billDueEnd = !empty($payload['due_date'])
+                        ? Carbon::parse($payload['due_date'])->timezone('Asia/Manila')->endOfDay()
+                        : Carbon::now('Asia/Manila')->addDays(15)->endOfDay();
+                } catch (\Exception $e) {
+                    $billDueEnd = Carbon::now('Asia/Manila')->addDays(15)->endOfDay();
+                }
+            }
+
+            // Checkout window: keep bill due when still in the future; otherwise
+            // extend so payment can complete today / after due (penalty mode).
+            $minExpiry = Carbon::now('Asia/Manila')->addDay()->endOfDay();
+            $dueDate = $billDueEnd->greaterThan($minExpiry) ? $billDueEnd : $minExpiry;
             $due_string = $dueDate->format('Y-m-d H:i:s');
+
+            if ($dueDate->ne($billDueEnd)) {
+                Log::info('Starita HitPay: extended expiry past bill due date', [
+                    'reference_no' => $reference_no,
+                    'bill_due_end' => $billDueEnd->format('Y-m-d H:i:s'),
+                    'hitpay_expiry' => $due_string,
+                ]);
+            }
 
             // ----------------------------------------------------
             // 4. Compute fees
@@ -78,17 +118,39 @@ class NovuStreamStaritaPaymentController extends Controller
             $admin_fee  = $hitpay_fee + $novupay_fee;
 
             $final_amount = round($amount + $admin_fee, 2);
-            
+
             // Apply testing mode if enabled
             if (env('NOVUPAY_FINAL_AMOUNT') === 'Testing') {
                 $final_amount = 1;
             }
 
+            $reusableTxn = $this->findReusableHitpayTransaction($reference_no, $final_amount);
+            if ($reusableTxn) {
+                Log::info('Starita HitPay reused existing payment request', [
+                    'reference_no' => $reference_no,
+                    'hitpay_id' => $reusableTxn->hitpay_id,
+                    'final_amount' => $final_amount,
+                ]);
+
+                return [
+                    'success' => true,
+                    'reused' => true,
+                    'hitpay' => [
+                        'id' => $reusableTxn->hitpay_id,
+                        'url' => $reusableTxn->payment_url,
+                    ],
+                    'transaction' => $reusableTxn,
+                ];
+            }
+
             // ----------------------------------------------------
             // 5. HitPay Payload
             // ----------------------------------------------------
-            $purpose = "Amount Due: ₱" . number_format($amount, 2) . "\n" .
-                       "Convenience Fee: ₱" . number_format($admin_fee, 2) . "\n" .
+            $purpose = "Amount Due: ₱" . number_format($amount, 2) . "\n";
+            if ($penaltyApplied && $penaltyAmount > 0) {
+                $purpose .= "Penalty: ₱" . number_format($penaltyAmount, 2) . "\n";
+            }
+            $purpose .= "Convenience Fee: ₱" . number_format($admin_fee, 2) . "\n" .
                        "Bill Payment for {$account_no}";
 
             // Unique reference prefix for Starita
@@ -154,9 +216,7 @@ class NovuStreamStaritaPaymentController extends Controller
             ]);
 
             $existingBill = StaritaBill::where('reference_no', $reference_no)->first();
-            $existingIsPaid = $existingBill && (
-                strtolower((string) $existingBill->status) === 'paid' || !is_null($existingBill->paid_at)
-            );
+            $existingIsPaid = $this->isStaritaBillPaid($existingBill);
 
             $billData = [
                 'account_no'      => $account_no,
@@ -201,8 +261,89 @@ class NovuStreamStaritaPaymentController extends Controller
 
 
     /**
+     * Save the scanned SOA bill without opening a HitPay checkout.
+     * Used while online payment is on the maintenance page.
+     */
+    public function recordStaritaBill(array $payload): array
+    {
+        try {
+            if (empty($payload['reference_no']) || empty($payload['amount'])) {
+                Log::warning('Starita Missing required fields', $payload);
+                return ['error' => 'Missing required fields'];
+            }
+
+            $reference_no = trim($payload['reference_no']);
+            $account_no   = trim((string) ($payload['account_no'] ?? ''));
+            $amount       = (float) $payload['amount'];
+            if (!$this->overdueQr->isPastDue($payload)) {
+                $payload = $this->overdueQr->normalizeStaritaPayload($payload);
+                $payload = $this->overdueQr->stripPenaltyIfBeforeDue($payload);
+                $amount = (float) $payload['amount'];
+            }
+
+            $present_reading = $payload['present_reading'] ?? null;
+            $is_high_consumption = (int) ($payload['is_high_consumption'] ?? 0);
+
+            $payor  = $payload['name'] ?? 'Starita Customer';
+            $email  = $payload['email'] ?? null;
+            $mobile = $payload['contact_no'] ?? null;
+            ['payor' => $payor, 'email' => $email, 'contact_no' => $mobile] =
+                $this->resolvePayorDetails($account_no, $payor, $email, $mobile);
+
+            $existingBill = StaritaBill::where('reference_no', $reference_no)->first();
+            if ($this->isStaritaBillPaid($existingBill)) {
+                return $this->alreadyPaidHitpayResult($existingBill, $reference_no);
+            }
+
+            $payloadWithPayor = array_merge($payload, [
+                'payor' => $payor,
+                'customer' => ['name' => $payor, 'email' => $email],
+            ]);
+
+            $billData = [
+                'account_no'      => $account_no,
+                'payor'           => $payor,
+                'email'           => $email,
+                'contact_no'      => $mobile,
+                'amount'          => $amount,
+                'present_reading' => $present_reading,
+                'is_high_consumption' => $is_high_consumption,
+                'status'          => $existingBill?->status ?: 'pending',
+                'payload'         => $payloadWithPayor,
+                'initiated_at'    => $existingBill?->initiated_at ?? now(),
+            ];
+            StaritaBill::updateOrCreate(['reference_no' => $reference_no], $billData);
+
+            Log::info('Starita bill saved during payment maintenance', [
+                'reference_no' => $reference_no,
+                'account_no' => $account_no,
+                'amount' => $amount,
+            ]);
+
+            return [
+                'success' => true,
+                'reference_no' => $reference_no,
+                'account_no' => $account_no,
+                'amount' => $amount,
+                'payor' => $payor,
+            ];
+        } catch (\Throwable $e) {
+            Log::error('Starita bill save failed during payment maintenance', [
+                'error' => $e->getMessage(),
+                'reference_no' => $payload['reference_no'] ?? null,
+            ]);
+
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * GET /api/novustream/starita/payment-request?rn=...&an=...&am=...&pr=...&hc=...
-     * QR scan → create HitPay request → redirect to HitPay checkout.
+     * QR scan → save bill details → NovuPay checkout (HitPay disabled).
+     *
+     * Controlled by DUE_DATE_QR_PENALTY:
+     *   true  — past due: apply penalty / amount_after_due, then save and open checkout
+     *   false — past due: redirect to /payment-expired/{reference_no}
      */
     public function handle(Request $request)
     {
@@ -217,6 +358,7 @@ class NovuStreamStaritaPaymentController extends Controller
                 'pr' => $request->pr,
                 'hc' => $request->hc,
             ],
+            'due_date_qr_penalty_mode' => $this->overdueQr->mode(),
         ]);
 
         $rn = $request->rn;
@@ -233,11 +375,16 @@ class NovuStreamStaritaPaymentController extends Controller
             return response()->json(['error' => 'Missing parameters'], 400);
         }
 
-        Log::info('NovuStream Starita: creating HitPay payment request', [
-            'reference_no' => $rn,
-            'account_no'   => $an,
-            'amount'       => (float) $am,
-        ]);
+        $existingBill = StaritaBill::where('reference_no', $rn)->first();
+        if ($this->isStaritaBillPaid($existingBill)) {
+            $confirmationUrl = $this->staritaConfirmationUrl($rn);
+            Log::info('NovuStream Starita: bill already paid, redirecting to confirmation', [
+                'reference_no' => $rn,
+                'account_no' => $an,
+                'url' => $confirmationUrl,
+            ]);
+            return redirect()->away($confirmationUrl);
+        }
 
         $payload = [
             'reference_no'        => $rn,
@@ -248,36 +395,214 @@ class NovuStreamStaritaPaymentController extends Controller
             'name'                => $request->name,
             'email'               => $request->email,
             'contact_no'          => $request->contact_no ?? $request->mobile ?? null,
+            'due_date'            => $request->due_date ?? $request->dd ?? null,
+            'amount_after_due'    => $request->amount_after_due ?? $request->aad ?? null,
+            'penalty'             => $request->penalty ?? null,
+            'utility'             => 'starita',
         ];
 
-        $result = $this->createHitpay($payload);
+        $overdueEval = $this->overdueQr->evaluate($payload);
+        if (!$overdueEval['continue']) {
+            $referenceNo = $overdueEval['reference_no'] ?? $rn;
+            $redirectUrl = $this->overdueQr->buildExpiredRedirectUrl(
+                $referenceNo,
+                $overdueEval['due_date'] ?? null,
+                'starita'
+            );
+
+            Log::info('NovuStream Starita: overdue QR void — redirecting to expired page', [
+                'reference_no' => $referenceNo,
+                'url' => $redirectUrl,
+                'mode' => $this->overdueQr->mode(),
+            ]);
+
+            return redirect()->away($redirectUrl);
+        }
+
+        $payload = $overdueEval['payload'];
+        $overdueMeta = [
+            'penalty_applied' => (bool) ($overdueEval['penalty_applied'] ?? false),
+            'penalty_amount' => (float) ($overdueEval['penalty_amount'] ?? 0),
+        ];
+
+        Log::info('NovuStream Starita: saving bill before NovuPay checkout', [
+            'reference_no' => $rn,
+            'account_no'   => $an,
+            'amount'       => (float) ($payload['amount'] ?? $am),
+            'penalty_applied' => $overdueMeta['penalty_applied'],
+            'penalty_amount' => $overdueMeta['penalty_amount'],
+        ]);
+
+        $result = $this->recordStaritaBill($payload);
+
+        if (!empty($result['already_paid'])) {
+            $confirmationUrl = $result['hitpay']['url'] ?? $this->staritaConfirmationUrl($rn);
+            Log::info('NovuStream Starita: bill already paid, redirecting to confirmation', [
+                'reference_no' => $rn,
+                'url' => $confirmationUrl,
+            ]);
+            return redirect()->away($confirmationUrl);
+        }
 
         if (!empty($result['error'])) {
-            Log::warning('NovuStream Starita: HitPay creation failed', [
+            Log::warning('NovuStream Starita: failed to save bill before checkout', [
                 'reference_no' => $rn,
                 'error'        => $result['error'],
             ]);
             return response()->json($result, 500);
         }
 
-        $url = $result['hitpay']['url'] ?? null;
-        if ($url) {
-            Log::info('NovuStream Starita: redirecting to HitPay', [
-                'reference_no' => $rn,
-                'hitpay_url'   => $url,
-            ]);
-            return redirect()->away($url);
+        $checkoutUrl = route('payment.checkout.srwd', [
+            'reference_no' => $rn,
+        ]);
+
+        Log::info('NovuStream Starita: redirecting to NovuPay checkout', [
+            'reference_no' => $rn,
+            'url' => $checkoutUrl,
+        ]);
+
+        return redirect()->away($checkoutUrl);
+    }
+
+    private function isStaritaBillPaid(?StaritaBill $bill): bool
+    {
+        if (!$bill) {
+            return false;
         }
 
-        Log::warning('NovuStream Starita: no HitPay URL in response', ['reference_no' => $rn]);
-        return response()->json(['error' => 'No HitPay URL'], 500);
+        return strtolower((string) $bill->status) === 'paid' || !is_null($bill->paid_at);
+    }
+
+    private function staritaConfirmationUrl(string $referenceNo): string
+    {
+        return rtrim((string) env('APP_URL'), '/') . '/payment-confirmation?ref=' . urlencode($referenceNo);
+    }
+
+    private function alreadyPaidHitpayResult(StaritaBill $bill, string $referenceNo): array
+    {
+        $txn = StaritaHitpayTransaction::where('reference_no', $referenceNo)
+            ->where('status', 'paid')
+            ->orderByDesc('paid_at')
+            ->first();
+
+        Log::info('Starita HitPay skipped: bill already paid', [
+            'reference_no' => $referenceNo,
+            'hitpay_id' => $bill->hitpay_reference ?? $txn?->hitpay_id,
+        ]);
+
+        return [
+            'success' => true,
+            'already_paid' => true,
+            'hitpay' => [
+                'id' => $bill->hitpay_reference ?? $txn?->hitpay_id,
+                'url' => $this->staritaConfirmationUrl($referenceNo),
+                'status' => 'paid',
+            ],
+            'transaction' => $txn,
+        ];
+    }
+
+    private function findReusableHitpayTransaction(string $referenceNo, float $finalAmount): ?StaritaHitpayTransaction
+    {
+        $candidates = StaritaHitpayTransaction::where('reference_no', $referenceNo)
+            ->whereNotNull('hitpay_id')
+            ->whereIn('status', ['initiated', 'pending'])
+            ->orderByDesc('id')
+            ->get();
+
+        foreach ($candidates as $txn) {
+            $remote = $this->fetchHitpayPaymentRequest((string) $txn->hitpay_id);
+            if (!$remote) {
+                continue;
+            }
+
+            $status = strtolower((string) ($remote['status'] ?? ''));
+            if (in_array($status, ['completed', 'succeeded', 'success', 'cancelled', 'canceled', 'expired', 'failed'], true)) {
+                continue;
+            }
+
+            $remoteAmount = round((float) ($remote['amount'] ?? $txn->final_amount ?? 0), 2);
+            if (abs($remoteAmount - round($finalAmount, 2)) >= 0.01) {
+                continue;
+            }
+
+            $url = $remote['url'] ?? $txn->payment_url;
+            if (empty($url)) {
+                continue;
+            }
+
+            if ($url !== $txn->payment_url) {
+                $txn->payment_url = $url;
+                $txn->save();
+            }
+
+            return $txn;
+        }
+
+        return null;
+    }
+
+    private function fetchHitpayPaymentRequest(string $paymentRequestId): ?array
+    {
+        try {
+            $response = Http::withHeaders([
+                'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
+            ])->get(rtrim((string) env('HITPAY_API_URL'), '/') . "/payment-requests/{$paymentRequestId}");
+
+            if ($response->failed()) {
+                return null;
+            }
+
+            $data = $response->json();
+            return is_array($data) ? $data : null;
+        } catch (\Throwable $e) {
+            Log::warning('Starita HitPay: failed to fetch existing request', [
+                'hitpay_id' => $paymentRequestId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    private function placeholderCustomerEmail(): string
+    {
+        return 'srwdsystem2023@gmail.com';
+    }
+
+    private function isUsableCustomerEmail(?string $email): bool
+    {
+        $email = trim((string) $email);
+        if ($email === '' || strcasecmp($email, $this->placeholderCustomerEmail()) === 0) {
+            return false;
+        }
+
+        return (bool) filter_var($email, FILTER_VALIDATE_EMAIL);
+    }
+
+    /**
+     * Linked concessionaire email wins. The system mailbox is only a fallback
+     * when the account has no email set up yet.
+     */
+    private function chooseCustomerEmail(?string $supplied, ?string $accountEmail): string
+    {
+        $accountEmail = trim((string) $accountEmail);
+        if ($this->isUsableCustomerEmail($accountEmail)) {
+            return $accountEmail;
+        }
+
+        $supplied = trim((string) $supplied);
+        if ($this->isUsableCustomerEmail($supplied)) {
+            return $supplied;
+        }
+
+        return $this->placeholderCustomerEmail();
     }
 
     private function resolvePayorDetails(string $accountNo, ?string $payor, ?string $email, ?string $contactNo): array
     {
         $resolved = [
             'payor' => $payor ?: 'Starita Customer',
-            'email' => $email ?: 'srwdsystem2023@gmail.com',
+            'email' => $this->chooseCustomerEmail($email, null),
             'contact_no' => $contactNo,
         ];
 
@@ -324,9 +649,7 @@ class NovuStreamStaritaPaymentController extends Controller
             if (empty($payor) && !empty($row->user_name)) {
                 $resolved['payor'] = (string) $row->user_name;
             }
-            if (empty($email) && !empty($row->user_email)) {
-                $resolved['email'] = (string) $row->user_email;
-            }
+            $resolved['email'] = $this->chooseCustomerEmail($email, $row->user_email ?? null);
             if (empty($contactNo) && !empty($row->account_contact)) {
                 $resolved['contact_no'] = (string) $row->account_contact;
             } elseif (empty($contactNo) && !empty($row->user_contact)) {

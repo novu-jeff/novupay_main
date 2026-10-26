@@ -16,8 +16,15 @@
                     <h5>Payment Not Available</h5>
 
                     <p>
-                        The due date for this bill has already expired.
-                        Online payment is no longer allowed.
+                        @if(($utility ?? '') === 'srwd' || ($utility ?? '') === 'starita')
+                            The due date for this bill has already expired.
+                            This QR code can no longer be used for online payment.
+                            Please pay in cash at the <strong>Sta. Rita Water District</strong> office
+                            or request a new Statement of Account (SOA) with an updated QR code.
+                        @else
+                            The due date for this bill has already expired.
+                            Online payment is no longer allowed.
+                        @endif
                     </p>
 
                     <h3 class="text-danger">Expired</h3>
@@ -52,8 +59,12 @@
 
                 <div class="text-center mt-3">
                     <div class="fw-bold text-muted" style="font-size: 15px;">
-                        To proceed with payment, please visit any authorized
-                        collection office or pay directly over the counter.
+                        @if(($utility ?? '') === 'srwd' || ($utility ?? '') === 'starita')
+                            Visit the Sta. Rita Water District cashier to pay in cash or obtain a new SOA.
+                        @else
+                            To proceed with payment, please visit any authorized
+                            collection office or pay directly over the counter.
+                        @endif
                     </div>
                 </div>
             </div>

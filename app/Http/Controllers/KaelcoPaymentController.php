@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use App\Models\KaelcoBill;
 use App\Models\PaymentItem;
+use App\Support\KaelcoBillDetails;
 use Carbon\Carbon;
 
 class KaelcoPaymentController extends Controller
@@ -72,7 +73,8 @@ class KaelcoPaymentController extends Controller
         $amountValue = (float) $amountRaw;
 
         $amount = (float) $payload['amount'];
-        $surcharge = (float) $payload['surcharge'] ?? 0;
+        $descriptionRaw = $payload['description'] ?? '';
+        $surcharge = KaelcoBillDetails::resolveSurcharge($payload['surcharge'] ?? null, $descriptionRaw);
         $total_amount = $amount + $surcharge;
         // ----------------------------------------------------------
         // KAELCO-specific fee computation
@@ -119,7 +121,6 @@ class KaelcoPaymentController extends Controller
         // HitPay payload (standalone, no PaymentRequestController)
         // ----------------------------------------------------------
         $account_no = $payload['account_number'] ?? '000000';
-        $bill_month = $payload['bill_month'] ?? null;
 
         // Due date: use provided or fallback to +15 days
         try {
@@ -161,7 +162,7 @@ class KaelcoPaymentController extends Controller
             'admin_fee'        => $additional_service_fee,
             'expiry_date'      => $due_date_string,
             'description'      => $descriptionText,
-            'payment_methods'  => $paymentMethods,
+            'payment_methods'  => $paymentMethodsAll,
         ];
 
         Log::info('Sending KAELCO HitPay Request', $hitpayPayload);
@@ -239,12 +240,8 @@ class KaelcoPaymentController extends Controller
         $email = $normalizeText($payload['email'] ?? null);
         $contactNo = $normalizeText($payload['phone_number'] ?? null);
         $address = $normalizeText($payload['address'] ?? null);
-        $surchargeRaw = $payload['surcharge'] ?? 0;
-        $surcharge = is_numeric($surchargeRaw) ? (float) $surchargeRaw : 0;
-        $billMonth = $payload['bill_month'] ?? null;
-        if (is_array($billMonth) || is_object($billMonth)) {
-            $billMonth = json_encode($billMonth);
-        }
+        $surcharge = KaelcoBillDetails::resolveSurcharge($payload['surcharge'] ?? null, $descriptionRaw);
+        $billMonth = KaelcoBillDetails::resolveBillMonth($payload['bill_month'] ?? null, $descriptionRaw);
 
         $bill = KaelcoBill::create([
             'reference_no'     => $referenceNo,

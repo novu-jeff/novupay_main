@@ -24,15 +24,43 @@
                     <div class="banner-images splide">
                         <div class="splide__track">
                               <ul class="splide__list">
-                                    <li class="splide__slide">
-                                        <img src="{{asset('images/banner1.png')}}" alt="banner">
-                                    </li>
-                                    <li class="splide__slide">
-                                        <img src="{{asset('images/banner2.png')}}" alt="banner">
-                                    </li>
-                                    <li class="splide__slide">
-                                        <img src="{{asset('images/banner3.png')}}" alt="banner">
-                                    </li>
+                                    @php
+                                        $heroSlides = [
+                                            [
+                                                'desktop' => 'images/new/hero-cityscape-desktop.png',
+                                                'mobile' => 'images/new/hero-cityscape-mobile.png',
+                                                'alt' => 'Cities connected through digital payments',
+                                            ],
+                                            [
+                                                'desktop' => 'images/new/hero-app-desktop.png',
+                                                'mobile' => 'images/new/hero-app-mobile.png',
+                                                'alt' => 'NovuPay mobile experience for bills and utilities',
+                                            ],
+                                            [
+                                                'desktop' => 'images/new/hero-checkout-desktop.png',
+                                                'mobile' => 'images/new/hero-checkout-mobile.png',
+                                                'alt' => 'Card, QR Ph, e-wallet, and bank transfer checkout',
+                                            ],
+                                            [
+                                                'desktop' => 'images/new/hero-qr-desktop.png',
+                                                'mobile' => 'images/new/hero-qr-mobile.png',
+                                                'alt' => 'Scan to pay with NovuPay',
+                                            ],
+                                            [
+                                                'desktop' => 'images/new/hero-security-desktop.png',
+                                                'mobile' => 'images/new/hero-security-mobile.png',
+                                                'alt' => 'Secure and protected digital payments',
+                                            ],
+                                        ];
+                                    @endphp
+                                    @foreach ($heroSlides as $index => $slide)
+                                        <li class="splide__slide">
+                                            <picture>
+                                                <source media="(max-width: 768px)" srcset="{{ asset($slide['mobile']) }}">
+                                                <img src="{{ asset($slide['desktop']) }}" alt="{{ $slide['alt'] }}" @if($index === 0) fetchpriority="high" @else loading="lazy" @endif>
+                                            </picture>
+                                        </li>
+                                    @endforeach
                               </ul>
                         </div>
                     </div>

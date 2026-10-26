@@ -8,6 +8,7 @@ use App\Models\Bill;
 use App\Models\KaelcoBill;
 use App\Models\StaritaBill;
 use App\Models\MorongBill;
+use App\Support\KaelcoBillDetails;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;  
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -64,10 +65,15 @@ class PaymentPageController extends Controller
         }
 
         // Extract bill months paid
-        $decoded = json_decode($bill->bill_month ?? '[]', true);
-
-        $payments = $decoded['payments'] ?? [];   // Extract real list of payments
-        $billMonths = $this->extractBillMonthsFromPayments($payments);
+        $codes = KaelcoBillDetails::extractYyyymmList($bill->bill_month);
+        if ($codes === []) {
+            $codes = KaelcoBillDetails::extractYyyymmList($bill->description);
+        }
+        rsort($codes, SORT_STRING);
+        $billMonths = array_map(
+            static fn ($code) => str_replace(' ', '-', KaelcoBillDetails::formatYyyymm($code)),
+            $codes
+        );
 
         // dd($payments, $billMonths);
         $payload = [
@@ -107,7 +113,7 @@ class PaymentPageController extends Controller
         if ($utility === 'kaelco') {
             $amountDue = (float) $bill->amount;
             $disconnectionFee = (float) ($bill->disconnection_fee ?? 0);
-            $surcharge = (float) ($bill->surcharge ?? 0);
+            $surcharge = KaelcoBillDetails::resolveSurcharge($bill->surcharge ?? 0, $bill->description);
             $totalAmount = $amountDue + $disconnectionFee + $surcharge;
             $payload['show_breakdown'] = true;
             $payload['amount_due'] = number_format($amountDue, 2);
@@ -320,7 +326,7 @@ class PaymentPageController extends Controller
         if ($bill instanceof KaelcoBill) {
             $amountDue = (float) $bill->amount;
             $disconnectionFee = (float) ($bill->disconnection_fee ?? 0);
-            $surcharge = (float) ($bill->surcharge ?? 0);
+            $surcharge = KaelcoBillDetails::resolveSurcharge($bill->surcharge ?? 0, $bill->description);
             $totalAmount = $amountDue + $disconnectionFee + $surcharge;
             $payload['show_breakdown'] = true;
             $payload['amount_due'] = number_format($amountDue, 2);
@@ -341,27 +347,13 @@ class PaymentPageController extends Controller
      */
     private function extractBillMonthsFromPayments($payments)
     {
-        $output = [];
+        $codes = KaelcoBillDetails::extractYyyymmList(['payments' => $payments]);
+        rsort($codes, SORT_STRING);
 
-        foreach ($payments as $p) {
-            if (!isset($p['period'])) continue;
-
-            $periodRaw = $p['period'];
-
-            // Clean newlines + extra spaces
-            $period = trim(preg_replace('/\s+/', ' ', $periodRaw));
-
-            /**
-             * Match formats like:
-             * "Nov-2025 (202511)"
-             */
-            if (preg_match('/([A-Za-z]{3}-\d{4})\s*\(\d{6}\)/', $period, $match)) {
-                // $match[1] captures "Nov-2025"
-                $output[] = $match[1];
-            }
-        }
-
-        return $output;
+        return array_map(
+            static fn ($code) => str_replace(' ', '-', KaelcoBillDetails::formatYyyymm($code)),
+            $codes
+        );
     }
 
 

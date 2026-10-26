@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use App\Models\KaelcoBill;
 use App\Models\PaymentItem;
+use App\Support\KaelcoBillDetails;
 use Carbon\Carbon;
 
 class KaelcoPaymentControllerTest extends Controller
@@ -107,7 +108,6 @@ class KaelcoPaymentControllerTest extends Controller
         // HitPay payload (standalone, no PaymentRequestController)
         // ----------------------------------------------------------
         $account_no = $payload['account_number'] ?? '000000';
-        $bill_month = $payload['bill_month'] ?? null;
 
         try {
             $due_date = !empty($payload['due_date'])
@@ -226,12 +226,8 @@ class KaelcoPaymentControllerTest extends Controller
         $email = $normalizeText($payload['email'] ?? null);
         $contactNo = $normalizeText($payload['phone_number'] ?? null);
         $address = $normalizeText($payload['address'] ?? null);
-        $surchargeRaw = $payload['surcharge'] ?? 0;
-        $surcharge = is_numeric($surchargeRaw) ? (float) $surchargeRaw : 0;
-        $billMonth = $payload['bill_month'] ?? null;
-        if (is_array($billMonth) || is_object($billMonth)) {
-            $billMonth = json_encode($billMonth);
-        }
+        $surcharge = KaelcoBillDetails::resolveSurcharge($payload['surcharge'] ?? null, $descriptionRaw);
+        $billMonth = KaelcoBillDetails::resolveBillMonth($payload['bill_month'] ?? null, $descriptionRaw);
 
         $bill = KaelcoBill::create([
             'reference_no'     => $referenceNo,

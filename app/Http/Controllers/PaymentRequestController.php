@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\OverdueQrService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -10,6 +11,11 @@ use Carbon\Carbon;
 
 class PaymentRequestController extends Controller
 {
+    public function __construct(
+        private readonly OverdueQrService $overdueQr
+    ) {
+    }
+
     /**
      * Pelco → Novupay
      * Creates HitPay payment request from decrypted payload
@@ -20,10 +26,23 @@ class PaymentRequestController extends Controller
             // ----------------------------------------------------
             // 1. Validate minimum required fields
             // ----------------------------------------------------
-            if (empty($payload['reference_no']) || empty($payload['amount'])) {
+            if (empty($payload['reference_no']) || !isset($payload['amount']) || $payload['amount'] === '') {
                 Log::warning('Missing required fields', $payload);
                 return ['error' => 'Missing required fields: reference_no or amount'];
             }
+
+            $overdueEval = $this->overdueQr->evaluate($payload);
+            if (!$overdueEval['continue']) {
+                return [
+                    'error' => 'This payment QR has expired. Please pay in cash at the water district office or request a new SOA.',
+                    'code' => 'qr_expired',
+                    'reference_no' => $overdueEval['reference_no'] ?? $payload['reference_no'] ?? null,
+                ];
+            }
+
+            $payload = $overdueEval['payload'];
+            $penaltyApplied = (bool) ($overdueEval['penalty_applied'] ?? false);
+            $penaltyAmount = (float) ($overdueEval['penalty_amount'] ?? 0);
 
             // ----------------------------------------------------
             // 2. Extract Inputs
@@ -35,24 +54,24 @@ class PaymentRequestController extends Controller
             $contact_no   = trim($payload['contact_no'] ?? '');
             $arrears      = (float) ($payload['arrears'] ?? 0);
 
-            // Amount must be float
-            $amount       = (float) $payload['amount'];
+            $amount = (float) $payload['amount'];
 
-            // Billing data
             $prev_reading = $payload['prev_reading'] ?? null;
             $present_reading = $payload['present_reading'] ?? null;
             $billing_period_from = $payload['billing_period_from'] ?? null;
             $billing_period_to   = $payload['billing_period_to'] ?? null;
 
             // ----------------------------------------------------
-            // 3. Due Date (Fallback: +15 days)
+            // 3. Due Date (payload / DB, then fallback +15 days)
             // ----------------------------------------------------
-            try {
-                $due_date = !empty($payload['due_date'])
-                    ? Carbon::parse($payload['due_date'])
-                    : Carbon::now()->addDays(15);
-            } catch (\Exception $e) {
-                $due_date = Carbon::now()->addDays(15);
+            $resolvedDue = $this->overdueQr->resolveDueDate($payload);
+            if ($resolvedDue) {
+                $due_date = $resolvedDue->copy()->timezone('Asia/Manila')->endOfDay();
+            } else {
+                Log::warning('OverdueQr: no due_date resolved, using +15 day HitPay expiry', [
+                    'reference_no' => $reference_no,
+                ]);
+                $due_date = Carbon::now('Asia/Manila')->addDays(15)->endOfDay();
             }
 
             $due_date_string = $due_date->format('Y-m-d H:i:s');
@@ -64,9 +83,8 @@ class PaymentRequestController extends Controller
             $gcash_fee = $amount * 0.023;
 
             $novupay_fee = 8.8;
-            $novupay_feeDummy = 0; // For testing purposes
+            $novupay_feeDummy = 0;
 
-            // Select default fee & methods based on amount
             if ($amount < 800) {
                 $selected_fee   = $gcash_fee;
                 $paymentMethods = ['gcash'];
@@ -75,7 +93,6 @@ class PaymentRequestController extends Controller
                 $paymentMethods = ['qrph_netbank', 'upay_online'];
             }
 
-            // Allow callers (e.g. KAELCO) to override payment methods
             if (!empty($payload['payment_methods']) && is_array($payload['payment_methods'])) {
                 $paymentMethods = $payload['payment_methods'];
             }
@@ -84,8 +101,7 @@ class PaymentRequestController extends Controller
             $additional_service_fee = $hitpay_fee + $novupay_feeDummy;
 
             $final_amount = round($amount + $additional_service_fee, 2);
-            
-            // Apply testing mode if enabled
+
             if (env('NOVUPAY_FINAL_AMOUNT') === 'Testing') {
                 $final_amount = 1;
             }
@@ -93,17 +109,20 @@ class PaymentRequestController extends Controller
             // ----------------------------------------------------
             // 5. HitPay Payload
             // ----------------------------------------------------
-            $purpose = "Amount Due: ₱" . number_format($amount, 2) . "\n" .
-                       "Convenience Fee: ₱" . number_format($additional_service_fee, 2) . "\n" .
-                       "Bill Payment for {$account_no}";
-            $reference_no = $reference_no;
+            $purpose = "Amount Due: ₱" . number_format($amount, 2) . "\n";
+            if ($penaltyApplied && $penaltyAmount > 0) {
+                $purpose .= "Penalty: ₱" . number_format($penaltyAmount, 2) . "\n";
+            }
+            $purpose .= "Convenience Fee: ₱" . number_format($additional_service_fee, 2) . "\n" .
+                "Bill Payment for {$account_no}";
+
             $email = $payload['email'] ?? 'support@novupay.ph';
             $bill_month = $payload['bill_month'] ?? null;
 
             $hitpayPayload = [
                 'amount'           => $final_amount,
                 'currency'         => 'PHP',
-                'email'            => $email, // TEMPORARY OVERRIDE
+                'email'            => $email,
                 'purpose'          => $purpose,
                 'reference_number' => $reference_no,
                 'redirect_url'     => env('HITPAY_REDIRECT_URL'),
@@ -126,7 +145,6 @@ class PaymentRequestController extends Controller
             $response = Http::withHeaders([
                 'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
             ])->post(env('HITPAY_API_URL') . '/payment-requests', $hitpayPayload);
-            // dd($response->body());
 
             if ($response->failed()) {
                 Log::error('HitPay API failed', ['response' => $response->body()]);
@@ -174,8 +192,6 @@ class PaymentRequestController extends Controller
         }
     }
 
-
-
     /**
      * QR → decrypt → create bill → redirect to HitPay
      */
@@ -197,10 +213,28 @@ class PaymentRequestController extends Controller
 
         Log::info('Decrypted QR Payload', $payload);
 
-        $result = $this->apiCreateHitpayPaymentRequest($payload);
+        $overdueEval = $this->overdueQr->evaluate($payload);
+        if (!$overdueEval['continue']) {
+            $referenceNo = $overdueEval['reference_no'] ?? ($payload['reference_no'] ?? 'unknown');
+            $redirectUrl = $this->overdueQr->buildExpiredRedirectUrl(
+                $referenceNo,
+                $overdueEval['due_date'] ?? null,
+                $overdueEval['utility'] ?? null
+            );
+
+            Log::info('OverdueQr: redirecting to expired page', [
+                'reference_no' => $referenceNo,
+                'url' => $redirectUrl,
+            ]);
+
+            return redirect()->away($redirectUrl);
+        }
+
+        $result = $this->apiCreateHitpayPaymentRequest($overdueEval['payload']);
 
         if (!empty($result['error'])) {
-            return response()->json($result, 500);
+            $status = ($result['code'] ?? '') === 'qr_expired' ? 403 : 500;
+            return response()->json($result, $status);
         }
 
         $hitpayUrl = $result['hitpay']['url'] ?? null;

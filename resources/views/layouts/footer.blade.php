@@ -12,8 +12,8 @@
     </div>
     <div class="footer">
         <div class="container">
-            <div class="d-md-flex m-auto text-center justify-content-center justify-content-md-between">
-                <img src="{{asset('images/novupay-logo.png')}}" class="novupay-logo" alt="logo">
+            <div class="d-flex justify-content-center">
+                <img src="{{ asset('images/novupay-logo-footer.png') }}?v=2" class="novupay-logo" alt="logo">
             </div>
             <hr>
             <div class="text-center text-uppercase fw-bold">
